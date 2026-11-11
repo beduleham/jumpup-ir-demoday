@@ -35,13 +35,11 @@ describe("시상 연출 단계", () => {
     }
   });
 
-  it("휴대폰의 최종 결과는 결과 공개 후 1위가 발표된 단계부터만 보인다", () => {
+  it("휴대폰의 최종 결과는 결과 공개 단계에서만 보인다", () => {
     for (const status of ["ready", "pitching", "open", "closed"]) {
-      for (const step of [0, 5, 6]) expect(mobileResultsVisible(status, step)).toBe(false);
+      expect(mobileResultsVisible(status)).toBe(false);
     }
-    expect([0, 1, 2, 3, 4, 5, 6].map((step) => mobileResultsVisible("revealed", step))).toEqual([
-      false, false, false, false, false, true, true,
-    ]);
+    expect(mobileResultsVisible("revealed")).toBe(true);
   });
 
   it("관리자 콘솔의 단계 이름이 7단계 모두에 있고 화면 동작과 맞는다", () => {

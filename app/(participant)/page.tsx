@@ -62,7 +62,7 @@ export default async function HomePage({
         {state.status === "pitching" && state.current_pitch_team ? (
           <CurrentPitchCard team={state.current_pitch_team} />
         ) : null}
-        {session && mobileResultsVisible(state.status, state.reveal_step) ? (
+        {session && mobileResultsVisible(state.status) ? (
           <ParticipantResultSummary investor={session} version={state.updated_at} />
         ) : null}
         {session ? (

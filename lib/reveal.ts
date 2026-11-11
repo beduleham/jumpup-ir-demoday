@@ -13,11 +13,11 @@ export const AWARD_NAMES: Record<number, string> = { 1: "대상", 2: "최우수�
 
 /**
  * 참가자 휴대폰에 최종 결과(순위, 유치액)를 보여 줘도 되는 시점인지.
- * 결과 공개 직후가 아니라 대형 스크린에서 1위까지 발표된 뒤부터 보여 준다.
- * 그 전에 보여 주면 무대에서 차례로 공개하는 순위를 휴대폰이 먼저 알려 주게 된다.
+ * 결과 공개 단계가 되면 시상 단계와 관계없이 바로 보여 준다(운영진 결정).
+ * 따라서 무대에서 순위를 차례로 발표하는 동안에도 휴대폰에는 전체 순위가 보인다.
  */
-export function mobileResultsVisible(status: string, revealStep: number): boolean {
-  return status === "revealed" && revealStep >= WINNER_STEP;
+export function mobileResultsVisible(status: string): boolean {
+  return status === "revealed";
 }
 
 /**
