@@ -84,6 +84,11 @@ async function getDashboard(): Promise<AdminDashboard> {
 const setSettings = (patch: unknown, cookie = admin) =>
   updateSettings(request("POST", "/api/admin/settings", patch, cookie));
 
+/** 테스트 준비용: 전환 규칙을 거치지 않고 단계를 바로 바꾼다. */
+async function forceStatus(status: string) {
+  await db.admin.query("update public.settings set status = $1, reveal_step = 0", [status]);
+}
+
 /** 번호로 지정한 투자자가 번호로 지정한 기업에 units억을 넣는다(DB 함수 직접 호출). */
 async function invest(investorNo: number, teamNo: number, units: number) {
   await db.as("service_role").query(
@@ -186,7 +191,7 @@ describe("일괄 등록", () => {
 
   it("같은 번호를 다시 올리면 내용을 갱신하고 투자 내역은 유지한다", async () => {
     await register(ROSTER);
-    await setSettings({ status: "open" });
+    await forceStatus("open");
     await invest(101, 1, 4);
     const response = await register("1\t큐네스티(변경)\t홍길동\t010-1000-0001\t새 소개\t");
     expect(response.status).toBe(200);
@@ -220,9 +225,10 @@ describe("대회 진행 제어", () => {
     expect(early.status).toBe(400);
     expect((await early.json()).error).toBe("시상 단계는 결과 공개 상태에서만 바꿀 수 있습니다.");
 
+    await forceStatus("closed");
     await setSettings({ status: "revealed" });
     expect((await (await setSettings({ reveal_step: 3 })).json()).data.reveal_step).toBe(3);
-    expect((await (await setSettings({ status: "closed" })).json()).data.reveal_step).toBe(0);
+    expect((await (await setSettings({ status: "closed", confirm_revert: true })).json()).data.reveal_step).toBe(0);
   });
 
   it("잘못된 값과 없는 기업을 거절한다", async () => {
@@ -239,7 +245,7 @@ describe("대회 진행 제어", () => {
 describe("집계, 순위, 내보내기, 초기화", () => {
   beforeEach(async () => {
     await register(ROSTER);
-    await setSettings({ status: "open" });
+    await forceStatus("open");
     // 1번: 5억(2건, 외부 0) / 2번: 5억(2건, 외부 3) / 3번: 6억(1건) / 4번: 5억(1건)
     await invest(2, 1, 2);
     await invest(3, 1, 3);
@@ -317,7 +323,7 @@ describe("집계, 순위, 내보내기, 초기화", () => {
     await db.admin.query("update public.teams set manual_rank_override = 1 where team_no = 4");
     const response = await reset("초기화 실행");
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ success: true, message: "투자 데이터가 초기화되었습니다." });
+    expect(await response.json()).toEqual({ success: true, message: "투자 데이터가 초기화되었습니다.", realtime: "sent" });
 
     const data = await getDashboard();
     expect(data.settings.status).toBe("ready");

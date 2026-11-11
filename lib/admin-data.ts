@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import type { BulkRow } from "@/lib/bulk-parse";
 import { rankTeams } from "@/lib/ranking";
+import { transitionProblem } from "@/lib/state-machine";
 import { createServiceClient } from "@/lib/supabase/server";
 import {
   adminSettingsSchema,
@@ -76,11 +77,24 @@ function toAdminSettings(row: Omit<AdminSettings, "status"> & { status: string }
   return adminSettingsSchema.parse({ ...row, updated_at: new Date(row.updated_at).toISOString() });
 }
 
-export async function fetchDashboard(): Promise<AdminDashboard> {
-  const supabase = createServiceClient();
-  const [settings, rows] = await Promise.all([readSettings(), supabase.rpc("admin_dashboard_data")]);
+/** 현재 대회 설정(단계, 발표 기업, 시상 단계 등). */
+export async function fetchAdminSettings(): Promise<AdminSettings> {
+  return adminSettingsSchema.parse(await readSettings());
+}
+
+async function readDashboardRows() {
+  const rows = await createServiceClient().rpc("admin_dashboard_data");
   if (rows.error) throw new Error(`대시보드 집계 실패: ${rows.error.message}`);
-  const data = dashboardRowsSchema.parse(rows.data);
+  return dashboardRowsSchema.parse(rows.data);
+}
+
+/** 기업별 유치 집계에 순위를 매겨 최종 순위 순으로 돌려준다. */
+export async function fetchRankedTeams() {
+  return rankTeams((await readDashboardRows()).teams);
+}
+
+export async function fetchDashboard(): Promise<AdminDashboard> {
+  const [settings, data] = await Promise.all([readSettings(), readDashboardRows()]);
 
   const investors = data.investors.map((investor) => {
     const remaining = settings.budget_units - investor.allocated_units;
@@ -109,19 +123,23 @@ export async function fetchInvestmentRows(): Promise<InvestmentRow[]> {
 }
 
 export async function updateSettings(patch: UpdateSettingsRequest): Promise<AdminSettings> {
+  const { confirm_revert: confirmedRevert = false, ...changes } = patch;
   const current = await readSettings();
-  const nextStatus = patch.status ?? current.status;
+  const nextStatus = changes.status ?? current.status;
 
-  if (patch.reveal_step !== undefined && nextStatus !== "revealed") {
+  const problem = transitionProblem(current.status, nextStatus, confirmedRevert);
+  if (problem) throw new AdminRequestError(problem, 400);
+
+  if (changes.reveal_step !== undefined && nextStatus !== "revealed") {
     throw new AdminRequestError("시상 단계는 결과 공개 상태에서만 바꿀 수 있습니다.", 400);
   }
 
   const update: Database["public"]["Tables"]["settings"]["Update"] = {
-    ...patch,
+    ...changes,
     updated_at: new Date().toISOString(),
   };
   // 결과 공개에 새로 들어가거나 벗어날 때는 시상 연출을 처음(숨김)으로 되돌린다.
-  if (patch.status !== undefined && patch.status !== current.status && patch.reveal_step === undefined) {
+  if (changes.status !== undefined && changes.status !== current.status && changes.reveal_step === undefined) {
     update.reveal_step = 0;
   }
 

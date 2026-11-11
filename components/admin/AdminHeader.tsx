@@ -4,10 +4,9 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { Modal } from "@/components/admin/Modal";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, INPUT, PANEL } from "@/components/admin/styles";
+import { isRevert, isSkip, STAGE_ORDER } from "@/lib/state-machine";
 import type { AdminDashboard, UpdateSettingsRequest } from "@/types/admin";
 import { STATUS_LABELS, type CompetitionStatus } from "@/types/competition";
-
-const STAGES: CompetitionStatus[] = ["ready", "pitching", "open", "closed", "revealed"];
 
 function formatSeoulTime(iso: string): string {
   return new Intl.DateTimeFormat("ko-KR", {
@@ -29,15 +28,13 @@ export function AdminHeader({
 }) {
   const { settings, teams } = dashboard;
   const [confirming, setConfirming] = useState<CompetitionStatus | null>(null);
-  const currentIndex = STAGES.indexOf(settings.status);
   const byNumber = [...teams].sort((a, b) => a.team_no - b.team_no);
   const pitchIndex = byNumber.findIndex((team) => team.id === settings.current_pitch_team_id);
 
   function selectStage(stage: CompetitionStatus) {
     if (stage === settings.status) return;
     // 투자가 열렸거나 끝난 뒤에 그 이전 단계로 되돌리는 것은 한 번 더 확인한다.
-    const goingBack = STAGES.indexOf(stage) < currentIndex && currentIndex >= STAGES.indexOf("open");
-    if (goingBack) setConfirming(stage);
+    if (isRevert(settings.status, stage)) setConfirming(stage);
     else onChange({ status: stage });
   }
 
@@ -59,13 +56,16 @@ export function AdminHeader({
       </div>
 
       <ol className="mt-3 flex flex-wrap gap-2">
-        {STAGES.map((stage, index) => {
+        {STAGE_ORDER.map((stage, index) => {
           const current = stage === settings.status;
+          // 앞으로는 바로 다음 단계로만 갈 수 있다(서버도 같은 규칙으로 거절한다).
+          const skipped = isSkip(settings.status, stage);
           return (
             <li key={stage}>
               <button
                 type="button"
-                disabled={busy}
+                disabled={busy || skipped}
+                title={skipped ? "이전 단계를 먼저 거쳐야 합니다." : undefined}
                 aria-current={current ? "step" : undefined}
                 onClick={() => selectStage(stage)}
                 className={current ? BUTTON_PRIMARY : BUTTON_SECONDARY}
@@ -136,7 +136,7 @@ export function AdminHeader({
             <button
               type="button"
               onClick={() => {
-                onChange({ status: confirming });
+                onChange({ status: confirming, confirm_revert: true });
                 setConfirming(null);
               }}
               className={BUTTON_PRIMARY}

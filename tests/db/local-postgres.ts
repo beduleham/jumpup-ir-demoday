@@ -85,7 +85,8 @@ export async function startLocalDatabase(): Promise<LocalDatabase> {
     async stop() {
       await Promise.all([admin.end(), ...[...pools.values()].map((pool) => pool.end())]);
       await server.stop();
-      await rm(databaseDir, { recursive: true, force: true });
+      // Windows에서는 서버가 멈춘 직후에도 파일 잠금이 잠깐 남을 수 있어 삭제를 재시도한다.
+      await rm(databaseDir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
     },
   };
 }

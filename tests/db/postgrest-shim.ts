@@ -12,6 +12,10 @@ export interface PostgrestShim {
   url: string;
   anonKey: string;
   serviceKey: string;
+  /** 실시간 브로드캐스트 REST 호출로 받은 메시지(테스트 확인용) */
+  broadcasts: Array<{ topic: string; event: string; payload: unknown }>;
+  /** true로 바꾸면 브로드캐스트 호출이 500으로 실패한다 */
+  failBroadcasts: boolean;
   stop(): Promise<void>;
 }
 
@@ -53,6 +57,15 @@ export async function startPostgrestShim(db: LocalDatabase): Promise<PostgrestSh
     [serviceKey, "service_role"],
   ]);
 
+  const shim: PostgrestShim = {
+    url: "",
+    anonKey,
+    serviceKey,
+    broadcasts: [],
+    failBroadcasts: false,
+    stop: async () => undefined,
+  };
+
   async function handle(request: IncomingMessage, response: ServerResponse) {
     const apiKey = request.headers.apikey;
     const role = typeof apiKey === "string" ? roles.get(apiKey) : undefined;
@@ -60,6 +73,20 @@ export async function startPostgrestShim(db: LocalDatabase): Promise<PostgrestSh
     const pool = db.as(role);
 
     const url = new URL(request.url ?? "/", "http://shim");
+
+    // Supabase Realtime의 브로드캐스트 REST 전송을 흉내 낸다(성공 시 202).
+    const broadcast = /\/broadcast\/([^/]+)\/events\/([^/]+)$/.exec(url.pathname);
+    if (broadcast && request.method === "POST") {
+      if (role !== "service_role" || shim.failBroadcasts) return send(response, 500, { message: "broadcast failed" });
+      shim.broadcasts.push({
+        topic: decodeURIComponent(broadcast[1]),
+        event: decodeURIComponent(broadcast[2]),
+        payload: JSON.parse(await readBody(request)),
+      });
+      response.writeHead(202);
+      return response.end();
+    }
+
     const rpc = /^\/rest\/v1\/rpc\/([^/]+)$/.exec(url.pathname);
     const table = /^\/rest\/v1\/([^/]+)$/.exec(url.pathname);
 
@@ -157,14 +184,11 @@ export async function startPostgrestShim(db: LocalDatabase): Promise<PostgrestSh
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as AddressInfo;
 
-  return {
-    url: `http://127.0.0.1:${port}`,
-    anonKey,
-    serviceKey,
-    stop: () =>
-      new Promise<void>((resolve, reject) => {
-        server.closeAllConnections();
-        server.close((error) => (error ? reject(error) : resolve()));
-      }),
-  };
+  shim.url = `http://127.0.0.1:${port}`;
+  shim.stop = () =>
+    new Promise<void>((resolve, reject) => {
+      server.closeAllConnections();
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+  return shim;
 }

@@ -21,7 +21,11 @@ const POLL_INTERVAL_MS = 2000;
 const TOAST_MS = 5000;
 const CONNECTION_ERROR = "서버에 연결하지 못했습니다. 네트워크를 확인해 주세요.";
 
+const REALTIME_FAILED =
+  "변경은 저장되었지만 실시간 알림을 보내지 못했습니다. 참가자 화면 반영이 몇 초 늦을 수 있습니다.";
+
 const failureSchema = z.object({ error: z.string() });
+const realtimeFailedSchema = z.object({ realtime: z.literal("failed") });
 const bulkResultSchema = z.object({
   data: z.object({ registered_teams_count: z.number(), registered_investors_count: z.number() }),
 });
@@ -106,6 +110,7 @@ export function AdminConsole() {
   async function changeSettings(patch: UpdateSettingsRequest) {
     const result = await send("POST", "/api/admin/settings", patch);
     if (!result.ok) setToast(result.error);
+    else if (realtimeFailedSchema.safeParse(result.body).success) setToast(REALTIME_FAILED);
   }
 
   async function overrideRank(teamId: string, rank: number | null) {

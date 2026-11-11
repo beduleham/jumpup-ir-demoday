@@ -63,9 +63,14 @@ export const updateSettingsRequestSchema = z
     current_pitch_team_id: z.string().uuid().nullable().optional(),
     reveal_step: z.number().int().min(0).max(6).optional(),
     show_live_totals: z.boolean().optional(),
+    /** 투자가 열린 뒤 이전 단계로 되돌릴 때, 관리자가 확인 창에서 확인했음을 뜻한다. */
+    confirm_revert: z.boolean().optional(),
   })
   .strict()
-  .refine((patch) => Object.keys(patch).length > 0, "변경할 항목이 없습니다.");
+  .refine(
+    (patch) => Object.keys(patch).some((key) => key !== "confirm_revert"),
+    "변경할 항목이 없습니다.",
+  );
 export type UpdateSettingsRequest = z.infer<typeof updateSettingsRequestSchema>;
 
 export const RESET_CONFIRMATION = "초기화 실행";

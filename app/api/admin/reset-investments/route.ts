@@ -1,8 +1,9 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { rejectUnlessAdmin } from "@/lib/admin-auth";
-import { resetInvestments } from "@/lib/admin-data";
+import { fetchAdminSettings, resetInvestments } from "@/lib/admin-data";
 import { adminError, adminFail, adminOk, readJson } from "@/lib/admin-http";
+import { broadcastStateChange } from "@/lib/realtime-broadcast";
 import { RESET_CONFIRMATION } from "@/types/admin";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +20,8 @@ export async function POST(request: NextRequest) {
 
   try {
     await resetInvestments();
-    return adminOk({ message: "투자 데이터가 초기화되었습니다." });
+    const delivered = await broadcastStateChange(await fetchAdminSettings(), true);
+    return adminOk({ message: "투자 데이터가 초기화되었습니다.", realtime: delivered ? "sent" : "failed" });
   } catch (error) {
     return adminError("api/admin/reset-investments", error);
   }

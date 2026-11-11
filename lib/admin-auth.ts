@@ -72,7 +72,7 @@ export function hasAdminSession(): boolean {
 export function rejectUnlessAdmin(request: NextRequest): NextResponse | null {
   if (isAdminCookieValue(request.cookies.get(ADMIN_COOKIE)?.value)) return null;
   return NextResponse.json(
-    { success: false, error: "관리자 세션이 만료되었습니다. 다시 로그인해주세요." },
+    { success: false, error: "관리자 로그인이 필요합니다." },
     { status: 401, headers: { "Cache-Control": "no-store, max-age=0" } },
   );
 }
