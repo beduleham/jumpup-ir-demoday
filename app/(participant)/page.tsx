@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { PhoneLoginForm } from "@/components/auth/PhoneLoginForm";
 import { TokenLogin } from "@/components/auth/TokenLogin";
 import { CurrentPitchCard } from "@/components/home/CurrentPitchCard";
-import { HomeHeader } from "@/components/home/HomeHeader";
 import { HomeLoadFailure } from "@/components/home/HomeLoadFailure";
 import { StateHeroBanner } from "@/components/home/StateHeroBanner";
 import { StateWatcher } from "@/components/home/StateWatcher";
@@ -45,20 +44,16 @@ export default async function HomePage({
 
   if (!data) {
     return (
-      <div className="mx-auto min-h-screen max-w-md">
-        <HomeHeader />
-        <main className="p-4">
-          <HomeLoadFailure />
-        </main>
-      </div>
+      <main className="p-4">
+        <HomeLoadFailure />
+      </main>
     );
   }
 
   const { state, teams } = data;
 
   return (
-    <div className="mx-auto min-h-screen max-w-md">
-      <HomeHeader />
+    <>
       <main className="flex flex-col gap-3 p-4">
         {session ? null : token ? <TokenLogin token={token} /> : <PhoneLoginForm />}
         <StateHeroBanner status={state.status} />
@@ -77,6 +72,6 @@ export default async function HomePage({
         )}
       </main>
       <StateWatcher snapshot={stateSnapshot(state)} statusLabel={STATUS_LABELS[state.status]} />
-    </div>
+    </>
   );
 }

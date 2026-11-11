@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "모의 IR 데모데이 가상 투자",
+  title: "광명 점프업 모의 IR 대회",
   description: "모의 IR 데모데이 현장에서 쓰는 실시간 가상 투자·집계 서비스",
 };
 

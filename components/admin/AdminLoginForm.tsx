@@ -38,9 +38,9 @@ export function AdminLoginForm() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center p-4">
+    <main className="mx-auto max-w-sm py-12">
       <form onSubmit={submit} className={`${PANEL} flex flex-col gap-3`}>
-        <h1 className="text-h2 text-text">관리자 로그인</h1>
+        <h2 className="text-h2 text-text">관리자 로그인</h2>
         <label htmlFor="admin-password" className="text-text">
           관리자 비밀번호
         </label>

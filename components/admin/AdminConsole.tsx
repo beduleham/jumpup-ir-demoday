@@ -151,9 +151,8 @@ export function AdminConsole() {
   const empty = dashboard !== null && dashboard.teams.length === 0 && dashboard.investors.length === 0;
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-4 p-4">
-      <header className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-h1 text-text">관리자 콘솔</h1>
+    <main className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => setBulkOpen(true)} className={BUTTON_PRIMARY}>
             <Upload aria-hidden="true" size={20} strokeWidth={2} />
@@ -163,7 +162,7 @@ export function AdminConsole() {
             로그아웃
           </button>
         </div>
-      </header>
+      </div>
 
       {problem ? (
         <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-danger-surface p-3 text-danger">
