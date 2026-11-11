@@ -365,3 +365,12 @@ describe("초대 토큰", () => {
     );
   });
 });
+
+describe("관리자 함수 접근 차단", () => {
+  it.each(["anon", "authenticated"] as const)("%s: 관리자 함수를 실행할 수 없다", async (role) => {
+    const pool = db.as(role);
+    await expect(pool.query("select public.admin_dashboard_data()")).rejects.toThrow(/permission denied/);
+    await expect(pool.query("select public.admin_investment_rows()")).rejects.toThrow(/permission denied/);
+    await expect(pool.query("select public.admin_bulk_register('[]'::jsonb)")).rejects.toThrow(/permission denied/);
+  });
+});

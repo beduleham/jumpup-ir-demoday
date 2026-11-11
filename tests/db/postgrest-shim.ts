@@ -70,7 +70,11 @@ export async function startPostgrestShim(db: LocalDatabase): Promise<PostgrestSh
         const placeholders = names.map((name, index) => `${identifier(name)} => $${index + 1}`);
         const result = await pool.query<{ result: unknown }>(
           `select public.${identifier(rpc[1])}(${placeholders.join(", ")}) as result`,
-          names.map((name) => args[name]),
+          // 객체·배열 인자는 PostgREST처럼 JSON으로 넘긴다(node-pg는 배열을 Postgres 배열로 바꿔 버린다).
+          names.map((name) => {
+            const value = args[name];
+            return typeof value === "object" && value !== null ? JSON.stringify(value) : value;
+          }),
         );
         return send(response, 200, result.rows[0].result);
       }
@@ -100,6 +104,38 @@ export async function startPostgrestShim(db: LocalDatabase): Promise<PostgrestSh
         const where = conditions.length > 0 ? ` where ${conditions.join(" and ")}` : "";
         const result = await pool.query(
           `select ${columns.join(", ")} from public.${identifier(table[1])}${where}${order}${limit}`,
+          values,
+        );
+        if ((request.headers.accept ?? "").includes("vnd.pgrst.object")) {
+          if (result.rows.length !== 1) {
+            return send(response, 406, { code: "PGRST116", message: "JSON object requested, multiple (or no) rows returned", details: null, hint: null });
+          }
+          return send(response, 200, result.rows[0]);
+        }
+        return send(response, 200, result.rows);
+      }
+
+      if (table && request.method === "PATCH") {
+        const patch: Record<string, unknown> = JSON.parse(await readBody(request));
+        const values: unknown[] = [];
+        const assignments = Object.keys(patch).map((column) => {
+          values.push(patch[column]);
+          return `${identifier(column)} = $${values.length}`;
+        });
+        const conditions: string[] = [];
+        for (const [key, value] of url.searchParams) {
+          if (key === "select") continue;
+          if (!value.startsWith("eq.")) throw new Error(`지원하지 않는 필터: ${key}=${value}`);
+          values.push(value.slice(3));
+          conditions.push(`${identifier(key)}::text = $${values.length}`);
+        }
+        // 조건 없는 전체 갱신은 실제 Supabase(pg_safeupdate)처럼 거부한다.
+        if (conditions.length === 0) throw new Error("UPDATE requires a WHERE clause");
+        const returning = (url.searchParams.get("select") ?? "*")
+          .split(",")
+          .map((column) => (column.trim() === "*" ? "*" : identifier(column.trim())));
+        const result = await pool.query(
+          `update public.${identifier(table[1])} set ${assignments.join(", ")} where ${conditions.join(" and ")} returning ${returning.join(", ")}`,
           values,
         );
         if ((request.headers.accept ?? "").includes("vnd.pgrst.object")) {

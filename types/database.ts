@@ -207,6 +207,18 @@ export type Database = {
     };
     Views: { [_ in never]: never };
     Functions: {
+      admin_bulk_register: {
+        Args: { p_rows: Json };
+        Returns: Json;
+      };
+      admin_dashboard_data: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
+      };
+      admin_investment_rows: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
+      };
       consume_invitation_token: {
         Args: { p_token: string };
         Returns: Json;
