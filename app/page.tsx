@@ -1,11 +1,13 @@
-import { AuthPrompt } from "@/components/home/AuthPrompt";
-import { BudgetSummaryBar } from "@/components/home/BudgetSummaryBar";
+import { redirect } from "next/navigation";
+import { PhoneLoginForm } from "@/components/auth/PhoneLoginForm";
+import { TokenLogin } from "@/components/auth/TokenLogin";
 import { CurrentPitchCard } from "@/components/home/CurrentPitchCard";
 import { HomeHeader } from "@/components/home/HomeHeader";
 import { HomeLoadFailure } from "@/components/home/HomeLoadFailure";
 import { StateHeroBanner } from "@/components/home/StateHeroBanner";
 import { StateWatcher } from "@/components/home/StateWatcher";
 import { TeamList } from "@/components/home/TeamList";
+import { InvestmentDashboard } from "@/components/investment/InvestmentDashboard";
 import { fetchPublicState, fetchPublicTeams } from "@/lib/competition-state";
 import { readSessionInvestor } from "@/lib/session";
 import {
@@ -28,8 +30,17 @@ async function loadHomeData(): Promise<{ state: PublicState; teams: PublicTeam[]
   }
 }
 
-export default async function HomePage() {
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: { token?: string | string[] };
+}) {
   const session = readSessionInvestor();
+  const token = typeof searchParams.token === "string" ? searchParams.token : null;
+
+  // 이미 로그인한 기기에서는 초대 토큰을 쓰지 않고 주소만 정리한다.
+  if (session && token) redirect("/");
+
   const data = await loadHomeData();
 
   if (!data) {
@@ -48,14 +59,22 @@ export default async function HomePage() {
   return (
     <div className="mx-auto min-h-screen max-w-md">
       <HomeHeader />
-      {session ? <BudgetSummaryBar session={session} budgetUnits={state.budget_units} /> : null}
       <main className="flex flex-col gap-3 p-4">
-        {session ? null : <AuthPrompt />}
+        {session ? null : token ? <TokenLogin token={token} /> : <PhoneLoginForm />}
         <StateHeroBanner status={state.status} />
         {state.status === "pitching" && state.current_pitch_team ? (
           <CurrentPitchCard team={state.current_pitch_team} />
         ) : null}
-        <TeamList teams={teams} />
+        {session ? (
+          <InvestmentDashboard
+            investor={session}
+            teams={teams}
+            status={state.status}
+            budgetUnits={state.budget_units}
+          />
+        ) : (
+          <TeamList teams={teams} />
+        )}
       </main>
       <StateWatcher snapshot={stateSnapshot(state)} statusLabel={STATUS_LABELS[state.status]} />
     </div>

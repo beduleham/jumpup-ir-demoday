@@ -41,6 +41,12 @@ export const sessionInvestorSchema = z.object({
 });
 export type SessionInvestor = z.infer<typeof sessionInvestorSchema>;
 
+/** 세션 쿠키에 서명되어 담기는 값. created_at은 발급 시각(유닉스 초)이다. */
+export const sessionPayloadSchema = sessionInvestorSchema.extend({
+  created_at: z.number().int(),
+});
+export type SessionPayload = z.infer<typeof sessionPayloadSchema>;
+
 export const STATUS_LABELS: Record<CompetitionStatus, string> = {
   ready: "준비",
   pitching: "발표 중",

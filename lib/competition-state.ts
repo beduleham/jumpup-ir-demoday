@@ -1,7 +1,6 @@
 import "server-only";
-import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import { getPublicSupabaseEnv } from "@/lib/env";
+import { createPublicClient } from "@/lib/supabase/server";
 import {
   competitionStatusSchema,
   publicTeamSchema,
@@ -20,15 +19,6 @@ const settingsRowSchema = z.object({
   current_pitch_team_id: z.string().nullable(),
   updated_at: z.string(),
 });
-
-function createPublicClient() {
-  const env = getPublicSupabaseEnv();
-  return createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    // Next.js가 조회 결과를 데이터 캐시에 담아 두면 단계 전환이 화면에 반영되지 않는다.
-    global: { fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }) },
-  });
-}
 
 export async function fetchPublicState(): Promise<PublicState> {
   const supabase = createPublicClient();

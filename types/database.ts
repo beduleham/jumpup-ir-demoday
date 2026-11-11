@@ -172,9 +172,45 @@ export type Database = {
           },
         ];
       };
+      invitation_tokens: {
+        Row: {
+          token: string;
+          investor_id: string;
+          expires_at: string;
+          used_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          token: string;
+          investor_id: string;
+          expires_at: string;
+          used_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          token?: string;
+          investor_id?: string;
+          expires_at?: string;
+          used_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "invitation_tokens_investor_id_fkey";
+            columns: ["investor_id"];
+            isOneToOne: false;
+            referencedRelation: "investors";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: { [_ in never]: never };
     Functions: {
+      consume_invitation_token: {
+        Args: { p_token: string };
+        Returns: Json;
+      };
       set_investment: {
         Args: { p_investor_id: string; p_team_id: string; p_target_units: number };
         Returns: Json;

@@ -66,7 +66,7 @@ async function setStatus(status: string) {
 }
 
 describe("스키마", () => {
-  it("네 테이블이 만들어지고 모두 RLS가 켜져 있다", async () => {
+  it("모든 테이블이 만들어지고 RLS가 켜져 있다", async () => {
     const result = await db.admin.query<{ relname: string; relrowsecurity: boolean }>(`
       select relname, relrowsecurity from pg_class
       where relnamespace = 'public'::regnamespace and relkind = 'r' order by relname
@@ -74,6 +74,7 @@ describe("스키마", () => {
     expect(result.rows).toEqual([
       { relname: "investments", relrowsecurity: true },
       { relname: "investors", relrowsecurity: true },
+      { relname: "invitation_tokens", relrowsecurity: true },
       { relname: "settings", relrowsecurity: true },
       { relname: "teams", relrowsecurity: true },
     ]);
@@ -292,5 +293,75 @@ describe("reset_investments_data", () => {
       "select status, reveal_step, current_pitch_team_id from public.settings",
     );
     expect(settings.rows).toEqual([{ status: "ready", reveal_step: 0, current_pitch_team_id: null }]);
+  });
+});
+
+describe("초대 토큰", () => {
+  const TOKEN = "invite-token-0123456789abcdefghijklmnop";
+
+  async function issue(expires: string) {
+    await db.admin.query(
+      `insert into public.invitation_tokens (token, investor_id, expires_at) values ($1, $2, now() + $3::interval)`,
+      [TOKEN, founders[0], expires],
+    );
+  }
+
+  const consume = () =>
+    db
+      .as("service_role")
+      .query<{ result: { success: boolean; code?: string; data?: Record<string, unknown> } }>(
+        "select public.consume_invitation_token($1) as result",
+        [TOKEN],
+      )
+      .then((result) => result.rows[0].result);
+
+  it("유효한 토큰은 참가자 표시 정보를 돌려주고 연락처는 포함하지 않는다", async () => {
+    await issue("1 hour");
+    const result = await consume();
+    expect(result).toEqual({
+      success: true,
+      data: {
+        investor_id: founders[0],
+        investor_no: 1,
+        investor_name: "대표 1",
+        investor_type: "founder",
+        team_id: teams[0],
+        company_name: "기업 1",
+      },
+    });
+  });
+
+  it("같은 토큰으로 동시에 10번 들어와도 한 번만 성공한다", async () => {
+    await issue("1 hour");
+    const results = await Promise.all(Array.from({ length: 10 }, consume));
+    expect(results.filter((result) => result.success)).toHaveLength(1);
+    expect(results.filter((result) => result.code === "ALREADY_USED")).toHaveLength(9);
+  });
+
+  it("만료된 토큰과 없는 토큰을 구분해 거절한다", async () => {
+    expect((await consume()).code).toBe("INVALID_TOKEN");
+    await issue("-1 minute");
+    expect((await consume()).code).toBe("EXPIRED_TOKEN");
+  });
+
+  it("짧은 토큰은 저장할 수 없다", async () => {
+    await expect(
+      db.admin.query(
+        "insert into public.invitation_tokens (token, investor_id, expires_at) values ('short', $1, now())",
+        [founders[0]],
+      ),
+    ).rejects.toThrow(/invitation_tokens_token_check/);
+  });
+
+  it.each(["anon", "authenticated"] as const)("%s: 토큰을 읽거나 쓰거나 소비할 수 없다", async (role) => {
+    await issue("1 hour");
+    const pool = db.as(role);
+    await expect(pool.query("select * from public.invitation_tokens")).rejects.toThrow(/permission denied/);
+    await expect(pool.query("update public.invitation_tokens set used_at = null")).rejects.toThrow(
+      /permission denied/,
+    );
+    await expect(pool.query("select public.consume_invitation_token($1)", [TOKEN])).rejects.toThrow(
+      /permission denied/,
+    );
   });
 });
