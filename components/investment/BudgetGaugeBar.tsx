@@ -10,10 +10,13 @@ const TONE: Record<GaugeTone, { bar: string; text: string }> = {
   done: { bar: "bg-success", text: "text-success" },
 };
 
-/** 투자할 수 없는 단계에서 게이지 옆에 붙는 표시. 투자 오픈 중에는 붙이지 않는다. */
+/**
+ * 투자할 수 없는 단계에서 게이지 옆에 붙는 표시. 투자 오픈 중에는 붙이지 않는다.
+ * 투자 마감 단계는 바로 위의 단계 표시가 이미 "투자 마감"이라 되풀이하지 않는다.
+ */
 function lockLabel(status: CompetitionStatus): string | null {
-  if (status === "open") return null;
-  return status === "ready" || status === "pitching" ? "투자 대기" : "투자 마감";
+  if (status === "open" || status === "closed") return null;
+  return status === "revealed" ? "투자 마감" : "투자 대기";
 }
 
 /** 남은 가상 투자금을 숫자와 막대로 보여 준다. 막대는 남은 금액만큼 차 있고, 투자할수록 줄어든다. */
