@@ -1,8 +1,9 @@
 "use client";
 
-import { CircleCheck, RefreshCw, TriangleAlert } from "lucide-react";
+import { CircleCheck, RefreshCw, TriangleAlert, WifiOff } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useState, type ReactNode } from "react";
+import { useNetworkStatus } from "@/hooks/use-network-status";
 import type { RealtimeLink } from "@/hooks/use-state-change-signal";
 import logoCenter from "@/public/logo_center.png";
 import logoGwangmyeong from "@/public/logo_gwangmyeong.png";
@@ -40,6 +41,15 @@ function useSeoulClock(): string {
 }
 
 function ConnectionBadge({ link, failed }: { link: RealtimeLink; failed: boolean }) {
+  const online = useNetworkStatus();
+  if (!online) {
+    return (
+      <p role="status" className="inline-flex items-center gap-2 rounded-md bg-stage-border px-4 py-2 text-h2 text-stage-text">
+        <WifiOff aria-hidden="true" size={28} strokeWidth={2} />
+        연결 끊김 - 재연결 중...
+      </p>
+    );
+  }
   if (failed || link === "lost") {
     return (
       <p role="status" className="inline-flex items-center gap-2 rounded-md border border-warning-icon px-4 py-2 text-h2 text-warning-icon">

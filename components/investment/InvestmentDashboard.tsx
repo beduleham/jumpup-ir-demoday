@@ -5,6 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { HomeErrorView } from "@/components/home/HomeErrorView";
 import { BudgetHeader } from "@/components/investment/BudgetHeader";
 import { TeamInvestmentCard } from "@/components/investment/TeamInvestmentCard";
+import { useNetworkStatus } from "@/hooks/use-network-status";
+import { reportRequestFailure } from "@/lib/network-status";
 import type { CompetitionStatus, PublicTeam, SessionInvestor } from "@/types/competition";
 import { myInvestmentsResponseSchema, setInvestmentResponseSchema } from "@/types/investment";
 
@@ -61,6 +63,7 @@ export function InvestmentDashboard({
   budgetUnits: number;
 }) {
   const router = useRouter();
+  const online = useNetworkStatus();
   const [allocations, setAllocations] = useState<Allocations>({});
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [saving, setSaving] = useState(false);
@@ -89,14 +92,16 @@ export function InvestmentDashboard({
         return;
       }
       console.error("[invest] 내 투자 내역 조회 실패", error);
+      if (!(error instanceof RequestError)) reportRequestFailure();
       setLoadState("error");
     }
   }, [router, show]);
 
   // 처음 들어올 때와 대회 단계가 바뀔 때(마감, 리허설 초기화 등) 서버 값으로 맞춘다.
+  // 네트워크가 끊겼다가 돌아왔을 때도 다시 읽는다(끊긴 동안에는 읽지 않는다).
   useEffect(() => {
-    void load();
-  }, [load, status]);
+    if (online) void load();
+  }, [load, status, online]);
 
   useEffect(() => {
     if (!toast) return;
@@ -133,7 +138,10 @@ export function InvestmentDashboard({
           sentAny = true;
         } catch (error) {
           const known = error instanceof RequestError;
-          if (!known) console.error("[invest] 투자 저장 실패", error);
+          if (!known) {
+            console.error("[invest] 투자 저장 실패", error);
+            reportRequestFailure();
+          }
           setToast(known ? error.message : NETWORK_ERROR);
           // 화면을 서버가 확정한 값으로 되돌리고, 가능하면 최신 값을 다시 받는다.
           show({ ...confirmed.current });
@@ -148,7 +156,8 @@ export function InvestmentDashboard({
     }
   }, [budgetUnits, load, router, show]);
 
-  const open = status === "open" && loadState === "ready";
+  // 끊긴 상태에서는 버튼을 잠가, 보내지 못할 변경이 화면에만 쌓이지 않게 한다.
+  const open = status === "open" && loadState === "ready" && online;
   const investedUnits = total(allocations);
 
   function change(teamId: string, delta: 1 | -1) {
@@ -188,6 +197,11 @@ export function InvestmentDashboard({
       {status === "open" ? null : (
         <p className="mt-1 text-text-muted">투자 오픈 단계에서만 금액을 바꿀 수 있습니다.</p>
       )}
+      {status === "open" && !online ? (
+        <p role="status" className="mt-1 font-semibold text-warning">
+          네트워크 연결이 필요합니다. 연결되면 버튼이 다시 켜집니다.
+        </p>
+      ) : null}
 
       {loadState === "loading" ? (
         <p role="status" className="mt-3 rounded-xl border border-border bg-surface p-4 text-text-muted">

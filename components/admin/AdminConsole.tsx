@@ -1,6 +1,6 @@
 "use client";
 
-import { Upload } from "lucide-react";
+import { Upload, WifiOff } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
@@ -11,6 +11,7 @@ import { InvestorStatusList } from "@/components/admin/InvestorStatusList";
 import { LiveMonitoringTable } from "@/components/admin/LiveMonitoringTable";
 import { RevealStepController } from "@/components/admin/RevealStepController";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, PANEL } from "@/components/admin/styles";
+import { useNetworkStatus } from "@/hooks/use-network-status";
 import type { BulkRegisterRow } from "@/lib/bulk-parse";
 import {
   adminDashboardSchema,
@@ -39,6 +40,7 @@ type SendResult = { ok: true; body: unknown } | { ok: false; error: string };
 /** 관리자 콘솔 본체: 대시보드를 주기적으로 새로 읽고, 모든 변경 요청을 서버로 보낸다. */
 export function AdminConsole() {
   const router = useRouter();
+  const online = useNetworkStatus();
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
   const [problem, setProblem] = useState<Problem>(null);
   const [busy, setBusy] = useState(false);
@@ -155,6 +157,12 @@ export function AdminConsole() {
   return (
     <main className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-end gap-2">
+        {online ? null : (
+          <p role="status" className="mr-auto inline-flex items-center gap-1 rounded-md bg-warning-surface px-3 py-2 font-semibold text-warning">
+            <WifiOff aria-hidden="true" size={20} strokeWidth={2} />
+            네트워크 연결 끊김 - 변경이 저장되지 않을 수 있습니다
+          </p>
+        )}
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => setBulkOpen(true)} className={BUTTON_PRIMARY}>
             <Upload aria-hidden="true" size={20} strokeWidth={2} />
