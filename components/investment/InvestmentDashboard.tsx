@@ -11,7 +11,8 @@ import { myInvestmentsResponseSchema, setInvestmentResponseSchema } from "@/type
 type Allocations = Record<string, number>;
 type LoadState = "loading" | "ready" | "error";
 
-const NETWORK_ERROR = "네트워크 통신 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
+const NETWORK_ERROR = "투자 반영에 실패했습니다. 다시 시도해주세요.";
+const LIMIT_REACHED = "가상 투자금 한도를 모두 소진했습니다. 더 투자하려면 다른 기업의 금액을 줄여 주세요.";
 const TOAST_MS = 4000;
 
 class RequestError extends Error {
@@ -107,12 +108,19 @@ export function InvestmentDashboard({
     if (flushing.current) return;
     flushing.current = true;
     setSaving(true);
+    let sentAny = false;
     try {
       for (;;) {
         const dirty = Object.keys({ ...desired.current, ...confirmed.current }).filter(
           (id) => (desired.current[id] ?? 0) !== (confirmed.current[id] ?? 0),
         );
-        if (dirty.length === 0) return;
+        if (dirty.length === 0) {
+          // 보낼 변경이 더 없고 서버가 확정한 합계가 한도에 닿았으면 배분이 끝났음을 알린다.
+          if (sentAny && total(confirmed.current) >= budgetUnits) {
+            setToast(`가상 투자금 ${budgetUnits}억 원을 모두 배분했습니다.`);
+          }
+          return;
+        }
 
         // 줄이는 변경을 먼저 보내야, 서버가 보는 합계가 중간에 한도를 넘지 않는다.
         const teamId =
@@ -122,6 +130,7 @@ export function InvestmentDashboard({
         try {
           await saveAllocation(teamId, target);
           confirmed.current = { ...confirmed.current, [teamId]: target };
+          sentAny = true;
         } catch (error) {
           const known = error instanceof RequestError;
           if (!known) console.error("[invest] 투자 저장 실패", error);
@@ -137,7 +146,7 @@ export function InvestmentDashboard({
       flushing.current = false;
       setSaving(false);
     }
-  }, [load, router, show]);
+  }, [budgetUnits, load, router, show]);
 
   const open = status === "open" && loadState === "ready";
   const investedUnits = total(allocations);
@@ -216,7 +225,9 @@ export function InvestmentDashboard({
                 isOwnTeam={investor.team_id === team.id}
                 canDecrease={open && units > 0}
                 canIncrease={open && investedUnits < budgetUnits}
+                limitReached={open && investedUnits >= budgetUnits}
                 onChange={(delta) => change(team.id, delta)}
+                onLimitTap={() => setToast(LIMIT_REACHED)}
               />
             );
           })}

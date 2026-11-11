@@ -18,7 +18,7 @@ const RULES: Array<{ icon: LucideIcon; title: string; body: string }> = [
   {
     icon: Ban,
     title: "자기 기업 투자 금지",
-    body: "소속 기업 카드에는 ‘내 기업 (투자 불가)’ 표시가 붙고 버튼이 눌리지 않습니다.",
+    body: "소속 기업 카드에는 ‘소속 기업 (투자 불가)’ 표시가 붙고 투자 버튼이 나오지 않습니다.",
   },
   {
     icon: Clock,

@@ -1,4 +1,5 @@
 import { CircleCheck, LogOut } from "lucide-react";
+import { BudgetGaugeBar } from "@/components/investment/BudgetGaugeBar";
 import { STATUS_LABELS, type CompetitionStatus, type SessionInvestor } from "@/types/competition";
 
 function identityLabel(investor: SessionInvestor): string {
@@ -28,7 +29,7 @@ export function BudgetHeader({
   return (
     <section
       aria-label="내 투자 현황"
-      className="sticky top-0 z-10 -mx-4 border-b border-border bg-surface px-4 py-3"
+      className="sticky top-0 z-10 -mx-4 border-b border-border bg-surface px-4 py-3 shadow-sm"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -47,22 +48,12 @@ export function BudgetHeader({
         </button>
       </div>
 
-      <p className={`mt-2 ${spentAll ? "text-success" : "text-text"}`}>
-        남은 투자금{" "}
-        <strong className="text-h2">{remaining}억 원</strong> / 총 {budgetUnits}억 원
-      </p>
-      <div
-        role="progressbar"
-        aria-label="사용한 가상 투자금"
-        aria-valuemin={0}
-        aria-valuemax={budgetUnits}
-        aria-valuenow={investedUnits}
-        aria-valuetext={`${budgetUnits}억 원 중 ${investedUnits}억 원 배분`}
-        className="mt-2 h-2 overflow-hidden rounded-sm bg-border"
-      >
-        <div
-          className={`h-full ${spentAll ? "bg-success" : "bg-primary"}`}
-          style={{ width: `${(investedUnits / budgetUnits) * 100}%` }}
+      <div className="mt-2">
+        <BudgetGaugeBar
+          totalBudget={budgetUnits}
+          investedUnits={investedUnits}
+          remainingUnits={remaining}
+          status={status}
         />
       </div>
       <p aria-live="polite" className="mt-1 min-h-5 text-caption text-text-muted">
