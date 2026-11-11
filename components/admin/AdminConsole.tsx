@@ -6,10 +6,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { AdminHeader } from "@/components/admin/AdminHeader";
 import { AdminToolbox } from "@/components/admin/AdminToolbox";
-import { BulkRegisterModal } from "@/components/admin/BulkRegisterModal";
+import { BulkRegisterModal, type BulkSubmitResult } from "@/components/admin/BulkRegisterModal";
 import { InvestorStatusList } from "@/components/admin/InvestorStatusList";
 import { LiveMonitoringTable } from "@/components/admin/LiveMonitoringTable";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, PANEL } from "@/components/admin/styles";
+import type { BulkRegisterRow } from "@/lib/bulk-parse";
 import {
   adminDashboardSchema,
   RESET_CONFIRMATION,
@@ -120,17 +121,15 @@ export function AdminConsole() {
     setToast(result.ok ? (rank === null ? "수동 순위를 해제했습니다." : `수동 순위를 ${rank}위로 저장했습니다.`) : result.error);
   }
 
-  async function registerBulk(text: string): Promise<string | null> {
-    const result = await send("POST", "/api/admin/bulk-register", { raw_tsv_text: text });
-    if (!result.ok) return result.error;
-    const counts = bulkResultSchema.safeParse(result.body);
-    setToast(
-      counts.success
-        ? `총 ${counts.data.data.registered_teams_count}개 기업과 ${counts.data.data.registered_investors_count}명의 투자자가 등록되었습니다.`
-        : "등록되었습니다.",
-    );
-    return null;
+  async function registerBulk(rows: BulkRegisterRow[]): Promise<BulkSubmitResult> {
+    const result = await send("POST", "/api/admin/bulk-register", { rows });
+    if (!result.ok) return { ok: false, error: result.error };
+    const counts = bulkResultSchema.parse(result.body).data;
+    return { ok: true, teams: counts.registered_teams_count, investors: counts.registered_investors_count };
   }
+
+  // 모달이 성공 후 스스로 닫히는 타이머를 걸므로, 다시 그려져도 같은 함수여야 한다.
+  const closeBulk = useCallback(() => setBulkOpen(false), []);
 
   async function resetInvestments(): Promise<string | null> {
     const result = await send("POST", "/api/admin/reset-investments", { confirmation: RESET_CONFIRMATION });
@@ -156,7 +155,7 @@ export function AdminConsole() {
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => setBulkOpen(true)} className={BUTTON_PRIMARY}>
             <Upload aria-hidden="true" size={20} strokeWidth={2} />
-            참가자 일괄 등록
+            엑셀/스프레드시트 일괄 등록
           </button>
           <button type="button" onClick={logout} className={BUTTON_SECONDARY}>
             로그아웃
@@ -213,11 +212,11 @@ export function AdminConsole() {
             <section className={`${PANEL} text-center`}>
               <p className="text-h3 text-text">등록된 기업 및 투자자 데이터가 없습니다.</p>
               <p className="mt-1 text-text-muted">
-                상단의 [참가자 일괄 등록] 버튼을 눌러 참가자를 등록해주세요.
+                상단의 [엑셀/스프레드시트 일괄 등록] 버튼을 눌러 참가자를 등록해주세요.
               </p>
               <button type="button" onClick={() => setBulkOpen(true)} className={`${BUTTON_PRIMARY} mt-3`}>
                 <Upload aria-hidden="true" size={20} strokeWidth={2} />
-                참가자 일괄 등록
+                엑셀/스프레드시트 일괄 등록
               </button>
             </section>
           ) : (
@@ -240,7 +239,7 @@ export function AdminConsole() {
         </>
       )}
 
-      {bulkOpen ? <BulkRegisterModal onClose={() => setBulkOpen(false)} onSubmit={registerBulk} /> : null}
+      {bulkOpen ? <BulkRegisterModal onClose={closeBulk} onSubmit={registerBulk} /> : null}
 
       <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-4 z-20 flex justify-center px-4">
         {toast ? (

@@ -10,6 +10,7 @@ import { POST as updateSettings } from "@/app/api/admin/settings/route";
 import { PATCH as overrideRank } from "@/app/api/admin/teams/[id]/override-rank/route";
 import { POST as createSession } from "@/app/api/auth/session/route";
 import { GET as publicState } from "@/app/api/public/state/route";
+import { parseBulkText } from "@/lib/bulk-parse";
 import type { AdminDashboard } from "@/types/admin";
 import { startLocalDatabase, type LocalDatabase } from "../db/local-postgres";
 import { startPostgrestShim, type PostgrestShim } from "../db/postgrest-shim";
@@ -72,8 +73,22 @@ function cookieOf(response: Response): string {
   return match[0];
 }
 
+/** 붙여넣은 텍스트를 화면과 같은 방식으로 행 배열로 바꿔 등록 API에 보낸다(오류가 있는 행도 그대로 보낸다). */
 const register = (text: string, cookie = admin) =>
-  bulkRegister(request("POST", "/api/admin/bulk-register", { raw_tsv_text: text }, cookie));
+  registerRows(
+    parseBulkText(text).rows.map((row) => ({
+      no: row.no ?? Number.NaN,
+      company_name: row.company_name,
+      leader_name: row.leader_name,
+      phone: row.phone_input,
+      description: row.description,
+      note: row.note,
+    })),
+    cookie,
+  );
+
+const registerRows = (rows: unknown, cookie = admin) =>
+  bulkRegister(request("POST", "/api/admin/bulk-register", { rows }, cookie));
 
 async function getDashboard(): Promise<AdminDashboard> {
   const response = await dashboard(request("GET", "/api/admin/dashboard", undefined, admin));
@@ -173,10 +188,11 @@ describe("일괄 등록", () => {
     const response = await register(["1\t큐네스티\t홍길동\t01012345678", "2\t그린루프\t김하늘\t010-12", "1\t중복\t박서준\t01033334444"].join("\n"));
     expect(response.status).toBe(400);
     const body = await response.json();
-    expect(body.error).toBe("2행: 전화번호는 숫자 10~11자리여야 합니다.");
+    expect(body.error).toBe("[행 1] 순번 1 중복 감지 (행 1, 3)");
     expect(body.row_errors).toEqual([
-      { line: 2, errors: ["전화번호는 숫자 10~11자리여야 합니다."] },
-      { line: 3, errors: ["순번이 1행과 중복됩니다."] },
+      { line: 1, errors: ["순번 1 중복 감지 (행 1, 3)"] },
+      { line: 2, errors: ["유효하지 않은 전화번호입니다 (숫자 10~11자리 필요)."] },
+      { line: 3, errors: ["순번 1 중복 감지 (행 1, 3)"] },
     ]);
     expect((await db.admin.query("select 1 from public.teams")).rowCount).toBe(0);
   });
@@ -187,6 +203,76 @@ describe("일괄 등록", () => {
     expect(response.status).toBe(409);
     expect((await response.json()).error).toBe("2행: 전화번호 01010000003는 이미 3번 기업에 등록되어 있습니다.");
     expect((await db.admin.query("select 1 from public.teams where team_no in (20, 21)")).rowCount).toBe(0);
+  });
+
+  const row = (no: number, phone: string, company = "기업", leader = "이름") => ({
+    no,
+    company_name: company,
+    leader_name: leader,
+    phone,
+    description: "",
+    note: "",
+  });
+
+  it("기업 2개와 외부 심사위원 1명을 보내면 teams 2건, investors 3건이 생긴다", async () => {
+    const response = await registerRows([
+      row(1, "010-1111-0001", "큐네스티", "홍길동"),
+      row(2, "010 1111 0002", "그린루프", "김하늘"),
+      row(101, "01011110101", "", "김심사"),
+    ]);
+    expect(response.status).toBe(200);
+    expect((await response.json()).data).toEqual({ registered_teams_count: 2, registered_investors_count: 3 });
+
+    const stored = await db.admin.query(
+      "select investor_no, investor_type, phone, team_id is not null as has_team from public.investors order by investor_no",
+    );
+    expect(stored.rows).toEqual([
+      { investor_no: 1, investor_type: "founder", phone: "01011110001", has_team: true },
+      { investor_no: 2, investor_type: "founder", phone: "01011110002", has_team: true },
+      { investor_no: 101, investor_type: "external", phone: "01011110101", has_team: false },
+    ]);
+  });
+
+  it.each([
+    ["순번 100", row(100, "01011110100"), "[행 2] 순번 100번은 예약 번호로 사용할 수 없습니다."],
+    ["순번 0", row(0, "01011110100"), "[행 2] 순번은 1 이상의 정수여야 합니다."],
+    ["소수 순번", row(1.5, "01011110100"), "[행 2] 순번은 1 이상의 정수여야 합니다."],
+    ["기업명 없는 기업", row(3, "01011110100", " "), "[행 2] 1~99번 기업은 기업명이 필수입니다."],
+    ["이름 없음", row(102, "01011110100", "", ""), "[행 2] 대표자/심사자 성명은 필수입니다."],
+    ["01로 시작하지 않는 번호", row(3, "02-1234-5678"), "[행 2] 유효하지 않은 전화번호입니다 (숫자 10~11자리 필요)."],
+  ])("%s이(가) 섞여 있으면 400이고 다른 정상 행도 저장되지 않는다", async (_name, bad, message) => {
+    const response = await registerRows([row(1, "01011110001"), bad]);
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toBe(message);
+    expect((await db.admin.query("select 1 from public.teams")).rowCount).toBe(0);
+    expect((await db.admin.query("select 1 from public.investors")).rowCount).toBe(0);
+  });
+
+  it("빈 배열, 100행 초과, 잘못된 모양의 요청을 거절한다", async () => {
+    expect((await registerRows([])).status).toBe(400);
+    const many = Array.from({ length: 101 }, (_, i) => row(101 + i, `0102222${String(i).padStart(4, "0")}`, "", "심사"));
+    expect((await registerRows(many)).status).toBe(400);
+    expect((await registerRows("not an array")).status).toBe(400);
+    expect((await registerRows([{ no: "1", phone: "01011110001" }])).status).toBe(400);
+    expect((await db.admin.query("select 1 from public.investors")).rowCount).toBe(0);
+  });
+
+  it("외부 심사위원 100명을 한 번에 등록할 수 있다", async () => {
+    const hundred = Array.from({ length: 100 }, (_, i) => row(101 + i, `0103333${String(i).padStart(4, "0")}`, "", `심사${i}`));
+    const response = await registerRows(hundred);
+    expect(response.status).toBe(200);
+    expect((await response.json()).data).toEqual({ registered_teams_count: 0, registered_investors_count: 100 });
+  });
+
+  it("다시 등록해도 기업과 투자자의 고유 ID는 바뀌지 않는다", async () => {
+    await registerRows([row(1, "01011110001", "큐네스티", "홍길동")]);
+    const ids = () =>
+      db.admin.query("select (select id from public.teams where team_no = 1) as team, (select id from public.investors where investor_no = 1) as investor");
+    const before = (await ids()).rows[0];
+    await registerRows([row(1, "01011119999", "큐네스티 주식회사", "홍길순")]);
+    expect((await ids()).rows[0]).toEqual(before);
+    const updated = await db.admin.query("select company_name, phone from public.teams where team_no = 1");
+    expect(updated.rows).toEqual([{ company_name: "큐네스티 주식회사", phone: "01011119999" }]);
   });
 
   it("같은 번호를 다시 올리면 내용을 갱신하고 투자 내역은 유지한다", async () => {
