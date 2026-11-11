@@ -3,6 +3,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { POST as logout } from "@/app/api/auth/logout/route";
 import { GET as me } from "@/app/api/auth/me/route";
 import { POST as createSession } from "@/app/api/auth/session/route";
+import { GET as myInvestmentsRoute } from "@/app/api/investments/mine/route";
+import { POST as setInvestmentRoute } from "@/app/api/investments/route";
 import { startLocalDatabase, type LocalDatabase } from "../db/local-postgres";
 import { startPostgrestShim, type PostgrestShim } from "../db/postgrest-shim";
 
@@ -185,5 +187,104 @@ describe("GET /api/auth/me, POST /api/auth/logout", () => {
     const response = logout();
     expect(await response.json()).toEqual({ success: true });
     expect(response.headers.get("set-cookie")).toMatch(/jumpup_session=;.*Max-Age=0/i);
+  });
+});
+
+describe("POST /api/investments, GET /api/investments/mine", () => {
+  const login = async (phone: string) => sessionCookieOf(await loginByPhone(phone));
+  const invest = (cookie: string | undefined, body: unknown) =>
+    setInvestmentRoute(post("/api/investments", body, cookie));
+  const mine = (cookie?: string) => myInvestmentsRoute(get("/api/investments/mine", cookie));
+
+  it("세션이 없거나 변조되면 401이고 아무것도 기록하지 않는다", async () => {
+    const expected = { success: false, error: "세션이 만료되었습니다. 다시 로그인해주세요." };
+    const none = await invest(undefined, { team_id: teams[1], target_units: 1 });
+    expect(none.status).toBe(401);
+    expect(await none.json()).toEqual(expected);
+    expect((await invest("jumpup_session=forged.value", { team_id: teams[1], target_units: 1 })).status).toBe(401);
+    expect((await mine()).status).toBe(401);
+
+    const rows = await db.admin.query("select 1 from public.investments");
+    expect(rows.rowCount).toBe(0);
+  });
+
+  it("배분을 저장하고 잔여 예산을 돌려준다", async () => {
+    const cookie = await login(FOUNDER_PHONE);
+    const response = await invest(cookie, { team_id: teams[1], target_units: 3 });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      success: true,
+      data: {
+        investor_id: founder,
+        team_id: teams[1],
+        allocated_units: 3,
+        total_invested_units: 3,
+        remaining_units: 7,
+      },
+    });
+
+    await invest(cookie, { team_id: teams[2], target_units: 2 });
+    const body = await (await mine(cookie)).json();
+    expect(body.data).toMatchObject({ investor_id: founder, total_invested_units: 5, remaining_units: 5 });
+    expect(body.data.allocations).toHaveLength(2);
+    expect(body.data.allocations).toContainEqual({ team_id: teams[1], amount_units: 3 });
+    expect(body.data.allocations).toContainEqual({ team_id: teams[2], amount_units: 2 });
+  });
+
+  it("본문에 다른 투자자 ID를 넣어도 세션의 참가자로만 기록된다", async () => {
+    const cookie = await login(FOUNDER_PHONE);
+    await invest(cookie, { team_id: teams[1], target_units: 2, investor_id: external });
+    const rows = await db.admin.query<{ investor_id: string }>("select investor_id from public.investments");
+    expect(rows.rows).toEqual([{ investor_id: founder }]);
+    expect((await (await mine(await login("01099990101"))).json()).data.allocations).toEqual([]);
+  });
+
+  it("대표가 자기 소속 기업에 투자하면 403이다", async () => {
+    const response = await invest(await login(FOUNDER_PHONE), { team_id: teams[0], target_units: 1 });
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ success: false, error: "자기 소속 기업에는 투자할 수 없습니다." });
+  });
+
+  it("외부 심사위원은 모든 기업에 투자할 수 있다", async () => {
+    const cookie = await login("01099990101");
+    for (const team of teams) {
+      expect((await invest(cookie, { team_id: team, target_units: 1 })).status).toBe(200);
+    }
+  });
+
+  it("합계가 10억 원을 넘으면 400이고 기존 배분은 그대로다", async () => {
+    const cookie = await login(FOUNDER_PHONE);
+    await invest(cookie, { team_id: teams[1], target_units: 6 });
+    const response = await invest(cookie, { team_id: teams[2], target_units: 5 });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      success: false,
+      error: "가상 투자금 한도(10억 원)를 초과할 수 없습니다.",
+    });
+    expect((await (await mine(cookie)).json()).data.total_invested_units).toBe(6);
+  });
+
+  it.each(["ready", "pitching", "closed", "revealed"])("%s 단계에서는 409로 거절한다", async (status) => {
+    await db.admin.query("update public.settings set status = $1", [status]);
+    const response = await invest(await login(FOUNDER_PHONE), { team_id: teams[1], target_units: 1 });
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toBe("현재는 투자 오픈 상태가 아닙니다.");
+  });
+
+  it("형식이 잘못된 요청과 없는 기업을 거절한다", async () => {
+    const cookie = await login(FOUNDER_PHONE);
+    expect((await invest(cookie, { team_id: teams[1], target_units: 11 })).status).toBe(400);
+    expect((await invest(cookie, { team_id: teams[1], target_units: -1 })).status).toBe(400);
+    expect((await invest(cookie, { team_id: teams[1], target_units: 1.5 })).status).toBe(400);
+    expect((await invest(cookie, { team_id: "not-a-uuid", target_units: 1 })).status).toBe(400);
+    expect((await invest(cookie, "not json")).status).toBe(400);
+    const missing = await invest(cookie, { team_id: "00000000-0000-4000-8000-000000000000", target_units: 1 });
+    expect(missing.status).toBe(404);
+  });
+
+  it("명단에서 삭제된 참가자의 남은 세션은 401로 거절한다", async () => {
+    const cookie = await login(FOUNDER_PHONE);
+    await db.admin.query("delete from public.investors where id = $1", [founder]);
+    expect((await invest(cookie, { team_id: teams[1], target_units: 1 })).status).toBe(401);
   });
 });
