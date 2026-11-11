@@ -8,7 +8,7 @@ export default function ParticipantError({ error }: { error: Error }) {
       <ErrorNotice
         error={error}
         title="화면을 불러오지 못했습니다."
-        body="잠시 후 다시 시도해 주세요."
+        body="일시적인 오류가 발생했습니다. 다시 시도해도 계속되면 운영본부에 문의해주세요."
         actionLabel="다시 시도"
         onAction={reloadPage}
       />

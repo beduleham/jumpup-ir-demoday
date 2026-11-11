@@ -1,16 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { GET } from "@/app/api/health/route";
 import { parseServerEnv } from "@/lib/env";
 import { healthCheckResponseSchema } from "@/lib/health";
 
-describe("GET /api/health", () => {
-  it("200과 스키마에 맞는 본문을 돌려준다", async () => {
-    const response = GET();
-    expect(response.status).toBe(200);
-
-    const body = healthCheckResponseSchema.parse(await response.json());
-    expect(body.status).toBe("ok");
-    expect(body.env).toBe("test");
+describe("헬스체크 응답 형식", () => {
+  it("정상과 저하 상태를 모두 표현하고, 계약 밖의 값은 거부한다", () => {
+    const base = { timestamp: "2026-11-11T00:00:00.000Z", env: "production" };
+    expect(healthCheckResponseSchema.safeParse({ ...base, status: "ok", db: "connected" }).success).toBe(true);
+    expect(healthCheckResponseSchema.safeParse({ ...base, status: "degraded", db: "disconnected" }).success).toBe(true);
+    expect(healthCheckResponseSchema.safeParse({ ...base, status: "error", db: "connected" }).success).toBe(false);
   });
 });
 

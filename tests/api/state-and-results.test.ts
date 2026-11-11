@@ -1,6 +1,9 @@
 import { NextRequest } from "next/server";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as adminLogin } from "@/app/api/admin/auth/route";
+import { POST as createSession } from "@/app/api/auth/session/route";
+import { GET as health } from "@/app/api/health/route";
+import { healthCheckResponseSchema } from "@/lib/health";
 import { POST as resetInvestments } from "@/app/api/admin/reset-investments/route";
 import { POST as updateSettings } from "@/app/api/admin/settings/route";
 import { GET as publicResults } from "@/app/api/public/results/route";
@@ -237,5 +240,66 @@ describe("POST /api/admin/settings — 검증과 알림", () => {
     const payload = JSON.stringify(shim.broadcasts[0].payload);
     expect(payload).toContain('"status":"ready"');
     expect(payload).toContain('"reset":true');
+  });
+});
+
+describe("GET /api/health", () => {
+  it("DB에 닿으면 200, status ok, db connected를 돌려준다", async () => {
+    const response = await health();
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("no-store, no-cache, must-revalidate");
+    const body = healthCheckResponseSchema.parse(await response.json());
+    expect(body).toMatchObject({ status: "ok", db: "connected", env: "test" });
+  });
+
+  it("DB 조회가 실패하면 503, degraded, disconnected이고 내부 오류 내용은 싣지 않는다", async () => {
+    await db.admin.query("revoke select on public.settings from anon");
+    try {
+      const response = await health();
+      expect(response.status).toBe(503);
+      const text = await response.text();
+      expect(healthCheckResponseSchema.parse(JSON.parse(text))).toMatchObject({
+        status: "degraded",
+        db: "disconnected",
+      });
+      expect(text).not.toMatch(/permission|settings|supabase|127\.0\.0\.1/i);
+    } finally {
+      await db.admin.query("grant select on public.settings to anon");
+    }
+  });
+
+  it("DB 접속 정보가 없어도 예외 없이 503을 돌려준다", async () => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    try {
+      const response = await health();
+      expect(response.status).toBe(503);
+      expect((await response.json()).db).toBe("disconnected");
+    } finally {
+      process.env.NEXT_PUBLIC_SUPABASE_URL = url;
+    }
+  });
+});
+
+describe("프로덕션 쿠키 속성", () => {
+  it("프로덕션에서는 참가자·관리자 세션 쿠키에 Secure가 붙는다", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    try {
+      const adminResponse = await adminLogin(request("/api/admin/auth", { password: PASSWORD }));
+      const adminCookie = adminResponse.headers.get("set-cookie") ?? "";
+      expect(adminCookie).toMatch(/Secure/i);
+      expect(adminCookie).toMatch(/HttpOnly/i);
+      expect(adminCookie).toMatch(/SameSite=strict/i);
+
+      const participantResponse = await createSession(
+        request("/api/auth/session", { method: "phone", phone: "01099990101" }),
+      );
+      const participantCookie = participantResponse.headers.get("set-cookie") ?? "";
+      expect(participantCookie).toMatch(/Secure/i);
+      expect(participantCookie).toMatch(/HttpOnly/i);
+      expect(participantCookie).toMatch(/SameSite=lax/i);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
