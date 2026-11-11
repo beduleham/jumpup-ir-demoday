@@ -7,7 +7,9 @@ import { StateHeroBanner } from "@/components/home/StateHeroBanner";
 import { StateWatcher } from "@/components/home/StateWatcher";
 import { TeamList } from "@/components/home/TeamList";
 import { InvestmentDashboard } from "@/components/investment/InvestmentDashboard";
+import { ParticipantResultSummary } from "@/components/results/ParticipantResultSummary";
 import { fetchPublicState, fetchPublicTeams } from "@/lib/competition-state";
+import { mobileResultsVisible } from "@/lib/reveal";
 import { readSessionInvestor } from "@/lib/session";
 import {
   STATUS_LABELS,
@@ -59,6 +61,9 @@ export default async function HomePage({
         <StateHeroBanner status={state.status} />
         {state.status === "pitching" && state.current_pitch_team ? (
           <CurrentPitchCard team={state.current_pitch_team} />
+        ) : null}
+        {session && mobileResultsVisible(state.status, state.reveal_step) ? (
+          <ParticipantResultSummary investor={session} version={state.updated_at} />
         ) : null}
         {session ? (
           <InvestmentDashboard
