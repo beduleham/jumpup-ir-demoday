@@ -55,7 +55,9 @@ export async function startLocalDatabase(): Promise<LocalDatabase> {
     port,
     user: "postgres",
     password: PASSWORD,
-    persistent: false,
+    // 라이브러리가 종료 시 폴더를 직접 지우게 두면(persistent: false) Windows의 파일 잠금 때문에
+    // 간헐적으로 EBUSY로 실패한다. 삭제는 아래 stop()에서 재시도하며 직접 한다.
+    persistent: true,
     onLog: () => undefined,
   });
   await server.initialise();
