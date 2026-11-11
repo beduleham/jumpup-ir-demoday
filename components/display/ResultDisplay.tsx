@@ -39,7 +39,7 @@ function Stage({ data }: { data: DisplayData }) {
     case "closed":
       return <ClosedView />;
     case "revealed":
-      return <RevealedView step={state.reveal_step} results={results.results} />;
+      return <RevealedView step={state.reveal_step} results={results.results} changedAt={state.updated_at} />;
   }
 }
 

@@ -158,8 +158,13 @@ export async function updateSettings(patch: UpdateSettingsRequest): Promise<Admi
   return toAdminSettings(result.data);
 }
 
-export async function overrideTeamRank(teamId: string, rank: number | null): Promise<void> {
-  const result = await createServiceClient()
+/**
+ * 수동 순위를 저장하고, 화면들이 결과를 다시 읽도록 설정의 변경 시각을 갱신해 돌려준다.
+ * (대형 스크린은 설정이 바뀌었을 때 결과를 새로 읽는다.)
+ */
+export async function overrideTeamRank(teamId: string, rank: number | null): Promise<AdminSettings> {
+  const supabase = createServiceClient();
+  const result = await supabase
     .from("teams")
     .update({ manual_rank_override: rank })
     .eq("id", teamId)
@@ -167,6 +172,16 @@ export async function overrideTeamRank(teamId: string, rank: number | null): Pro
     .maybeSingle();
   if (result.error) throw new Error(`수동 순위 저장 실패: ${result.error.message}`);
   if (!result.data) throw new AdminRequestError("기업을 찾을 수 없습니다.", 404);
+
+  const current = await readSettings();
+  const touched = await supabase
+    .from("settings")
+    .update({ updated_at: new Date().toISOString() })
+    .eq("id", current.id)
+    .select(SETTINGS_COLUMNS)
+    .single();
+  if (touched.error) throw new Error(`settings 갱신 실패: ${touched.error.message}`);
+  return toAdminSettings(touched.data);
 }
 
 const bulkResultSchema = z.object({

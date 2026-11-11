@@ -24,31 +24,31 @@ function byAutomaticOrder(a: RankableTeam, b: RankableTeam): number {
 
 /**
  * 순위를 매겨 최종 순위 순으로 돌려준다.
- * 수동 순위가 지정된 기업은 그 순위를 갖고, 나머지는 남은 순위를 자동 정렬 순서대로 채운다.
- * 같은 수동 순위가 겹치면 자동 정렬에서 앞선 기업이 그 순위를 갖고 뒤 기업은 다음 빈 순위로 밀린다.
+ * 수동 순위가 지정된 기업은 그 순위를 갖고, 나머지는 남은 자리를 자동 정렬 순서대로 채운다.
+ * 같은 수동 순위를 여러 기업에 주면 공동 순위가 된다: 모두 그 순위로 표시되고,
+ * 공동 순위가 차지한 자리 수만큼 다음 순위는 건너뛴다(공동 1위가 둘이면 다음은 3위).
  */
 export function rankTeams<T extends RankableTeam>(teams: T[]): Ranked<T>[] {
   const ordered = [...teams].sort(byAutomaticOrder);
+  // 자리(1번째, 2번째, …)는 기업마다 하나씩 차지한다. 표시 순위는 공동 순위일 때 자리와 다를 수 있다.
   const taken = new Set<number>();
   const finalRank = new Map<T, number>();
 
-  const nextFree = (from: number) => {
-    let rank = from;
-    while (taken.has(rank)) rank += 1;
-    return rank;
+  const takeFreeSlot = (from: number) => {
+    let slot = from;
+    while (taken.has(slot)) slot += 1;
+    taken.add(slot);
+    return slot;
   };
 
   for (const team of ordered) {
     if (team.manual_rank_override === null) continue;
-    const rank = nextFree(team.manual_rank_override);
-    taken.add(rank);
-    finalRank.set(team, rank);
+    takeFreeSlot(team.manual_rank_override);
+    finalRank.set(team, team.manual_rank_override);
   }
   for (const team of ordered) {
     if (finalRank.has(team)) continue;
-    const rank = nextFree(1);
-    taken.add(rank);
-    finalRank.set(team, rank);
+    finalRank.set(team, takeFreeSlot(1));
   }
 
   return ordered
@@ -57,5 +57,19 @@ export function rankTeams<T extends RankableTeam>(teams: T[]): Ranked<T>[] {
       calculated_rank: index + 1,
       final_rank: finalRank.get(team) ?? index + 1,
     }))
+    // 정렬은 안정적이므로 공동 순위끼리는 자동 정렬 순서를 유지한다.
     .sort((a, b) => a.final_rank - b.final_rank);
+}
+
+/**
+ * 자동 정렬 기준(유치액, 투자자 수, 외부 유치액)이 모두 같아 기업 번호로만 순서가 갈린 기업들의 번호.
+ * 이런 기업은 운영진이 순위를 직접 정해야 할 수 있다.
+ */
+export function tiedTeamNumbers(teams: RankableTeam[]): Set<number> {
+  const groups = new Map<string, number[]>();
+  for (const team of teams) {
+    const key = `${team.total_raised_units}/${team.investor_count}/${team.external_raised_units}`;
+    groups.set(key, [...(groups.get(key) ?? []), team.team_no]);
+  }
+  return new Set([...groups.values()].filter((group) => group.length > 1).flat());
 }

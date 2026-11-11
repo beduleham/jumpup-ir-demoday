@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createAdminToken, verifyAdminToken } from "@/lib/admin-auth";
 import { parseBulkText, toRegisterRows } from "@/lib/bulk-parse";
-import { rankTeams, type RankableTeam } from "@/lib/ranking";
+import { rankTeams, tiedTeamNumbers, type RankableTeam } from "@/lib/ranking";
 import { buildResultsCsv, resultsCsvFilename } from "@/lib/results-csv";
 import { createSessionToken } from "@/lib/session";
 
@@ -113,9 +113,20 @@ describe("순위 계산", () => {
     expect(ranked.find((t) => t.team_no === 3)?.calculated_rank).toBe(3);
   });
 
-  it("같은 수동 순위가 겹쳐도 순위가 중복되지 않는다", () => {
-    const ranked = rankTeams([team(1, 9, 3, 0, 1), team(2, 7, 2, 0, 1), team(3, 5, 1, 0)]);
-    expect(ranked.map((t) => t.final_rank)).toEqual([1, 2, 3]);
+  it("같은 수동 순위를 여러 기업에 주면 공동 순위가 되고, 다음 순위는 그만큼 건너뛴다", () => {
+    const ranked = rankTeams([team(1, 9, 3, 0, 1), team(2, 7, 2, 0, 1), team(3, 5, 1, 0), team(4, 1, 1, 0)]);
+    expect(ranked.map((t) => [t.team_no, t.final_rank])).toEqual([[1, 1], [2, 1], [3, 3], [4, 4]]);
+  });
+
+  it("수동 순위를 해제하면 자동 정렬 순위로 돌아간다", () => {
+    const ranked = rankTeams([team(1, 9, 3, 0), team(2, 7, 2, 0), team(3, 7, 2, 0), team(4, 1, 1, 0)]);
+    expect(ranked.map((t) => [t.team_no, t.final_rank])).toEqual([[1, 1], [2, 2], [3, 3], [4, 4]]);
+  });
+
+  it("유치액·투자자 수·외부 유치액이 모두 같은 기업만 동점으로 잡는다", () => {
+    const tied = tiedTeamNumbers([team(1, 7, 2, 3), team(2, 7, 2, 3), team(3, 7, 2, 0), team(4, 7, 3, 3), team(5, 1, 1, 0)]);
+    expect([...tied].sort()).toEqual([1, 2]);
+    expect(tiedTeamNumbers([team(1, 5, 1, 0), team(2, 4, 1, 0)]).size).toBe(0);
   });
 });
 

@@ -1,23 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { revealedRanks, spotlightRank, teaserRank } from "@/lib/reveal";
+import {
+  LOWER_RANKS_STEP,
+  PODIUM_STEP,
+  revealedRanks,
+  spotlightRank,
+  WINNER_STEP,
+  WINNER_TEASER_STEP,
+} from "@/lib/reveal";
 import { REVEAL_STEP_LABELS } from "@/types/admin";
 
 describe("시상 연출 단계", () => {
-  it("0~6단계가 예고 → 공개 순서로 이어진다", () => {
+  it("0~6단계가 대기 → 4위 이하 → 3위 → 2위 → 1위 예고 → 1위 → 포디엄 순서로 이어진다", () => {
     const steps = [0, 1, 2, 3, 4, 5, 6].map((step) => ({
-      teaser: teaserRank(step),
       spotlight: spotlightRank(step),
       revealed: revealedRanks(step),
     }));
     expect(steps).toEqual([
-      { teaser: null, spotlight: null, revealed: [] },
-      { teaser: 3, spotlight: null, revealed: [] },
-      { teaser: null, spotlight: 3, revealed: [3] },
-      { teaser: null, spotlight: 2, revealed: [3, 2] },
-      { teaser: 1, spotlight: null, revealed: [3, 2] },
-      { teaser: null, spotlight: 1, revealed: [3, 2, 1] },
-      { teaser: null, spotlight: null, revealed: [3, 2, 1] },
+      { spotlight: null, revealed: [] },
+      { spotlight: null, revealed: [] },
+      { spotlight: 3, revealed: [3] },
+      { spotlight: 2, revealed: [3, 2] },
+      { spotlight: null, revealed: [3, 2] },
+      { spotlight: 1, revealed: [3, 2, 1] },
+      { spotlight: null, revealed: [3, 2, 1] },
     ]);
+    expect([LOWER_RANKS_STEP, WINNER_TEASER_STEP, WINNER_STEP, PODIUM_STEP]).toEqual([1, 4, 5, 6]);
   });
 
   it("1위는 5단계 전에는 어디에도 나오지 않는다", () => {
@@ -27,7 +34,10 @@ describe("시상 연출 단계", () => {
     }
   });
 
-  it("관리자 콘솔의 단계 이름이 7단계 모두에 있다", () => {
+  it("관리자 콘솔의 단계 이름이 7단계 모두에 있고 화면 동작과 맞는다", () => {
     expect(REVEAL_STEP_LABELS).toHaveLength(7);
+    expect(REVEAL_STEP_LABELS[LOWER_RANKS_STEP]).toBe("4위 이하 공개");
+    expect(REVEAL_STEP_LABELS[WINNER_STEP]).toBe("1위 발표");
+    expect(REVEAL_STEP_LABELS[PODIUM_STEP]).toBe("최종 포디엄");
   });
 });

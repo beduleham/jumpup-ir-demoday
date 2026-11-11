@@ -367,7 +367,13 @@ describe("집계, 순위, 내보내기, 초기화", () => {
     const patch = (rank: unknown, id = team1.id) =>
       overrideRank(request("PATCH", `/api/admin/teams/${id}/override-rank`, { manual_rank_override: rank }, admin), { params: { id } });
 
+    const before = (await getDashboard()).settings.updated_at;
+    const sent = shim.broadcasts.length;
     expect((await patch(1)).status).toBe(200);
+    // 순위가 바뀌면 화면들이 결과를 다시 읽도록 변경 시각을 갱신하고 알림을 보낸다.
+    expect(Date.parse((await getDashboard()).settings.updated_at)).toBeGreaterThan(Date.parse(before));
+    expect(shim.broadcasts).toHaveLength(sent + 1);
+    expect(shim.broadcasts.at(-1)).toMatchObject({ topic: "jumpup_public_display", event: "state_change" });
     let teams = (await getDashboard()).teams;
     expect(teams.slice(0, 3).map((t) => [t.team_no, t.final_rank])).toEqual([[1, 1], [3, 2], [2, 3]]);
     expect(teams[0]).toMatchObject({ calculated_rank: 3, manual_rank_override: 1 });
@@ -375,6 +381,28 @@ describe("집계, 순위, 내보내기, 초기화", () => {
     expect((await patch(null)).status).toBe(200);
     teams = (await getDashboard()).teams;
     expect(teams[0].team_no).toBe(3);
+
+    // 두 기업에 같은 순위를 주면 공동 순위가 되고, 다음 기업은 3위가 된다.
+    const team2 = teams.find((t) => t.team_no === 2);
+    if (!team2) throw new Error("2번 기업이 없습니다.");
+    expect((await patch(1)).status).toBe(200);
+    expect((await patch(1, team2.id)).status).toBe(200);
+    teams = (await getDashboard()).teams;
+    expect(teams.slice(0, 3).map((t) => [t.team_no, t.final_rank])).toEqual([[2, 1], [1, 1], [3, 3]]);
+    expect((await patch(null)).status).toBe(200);
+    expect((await patch(null, team2.id)).status).toBe(200);
+    teams = (await getDashboard()).teams;
+    expect(teams.slice(0, 3).map((t) => [t.team_no, t.final_rank])).toEqual([[3, 1], [2, 2], [1, 3]]);
+
+    // 관리자 세션 없이는 순위를 바꿀 수 없다.
+    const sentBeforeUnauthenticated = shim.broadcasts.length;
+    const unauthenticated = await overrideRank(
+      request("PATCH", `/api/admin/teams/${team1.id}/override-rank`, { manual_rank_override: 1 }, ""),
+      { params: { id: team1.id } },
+    );
+    expect(unauthenticated.status).toBe(401);
+    expect(shim.broadcasts).toHaveLength(sentBeforeUnauthenticated);
+    expect((await getDashboard()).teams.every((t) => t.manual_rank_override === null)).toBe(true);
 
     expect((await patch(0)).status).toBe(400);
     expect((await patch(1.5)).status).toBe(400);

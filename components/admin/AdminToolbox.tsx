@@ -3,10 +3,8 @@
 import { Download, RotateCcw, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { Modal } from "@/components/admin/Modal";
-import { BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_SECONDARY, INPUT, PANEL } from "@/components/admin/styles";
-import { RESET_CONFIRMATION, REVEAL_STEP_LABELS, type AdminSettings } from "@/types/admin";
-
-const LAST_STEP = REVEAL_STEP_LABELS.length - 1;
+import { BUTTON_DANGER, BUTTON_SECONDARY, INPUT, PANEL } from "@/components/admin/styles";
+import { RESET_CONFIRMATION } from "@/types/admin";
 
 const SPINNER =
   "block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent motion-reduce:animate-none";
@@ -28,17 +26,11 @@ async function downloadResultsCsv(): Promise<void> {
   URL.revokeObjectURL(url);
 }
 
-/** 시상 연출 단계, 결과 CSV 내보내기, 리허설 초기화. */
+/** 결과 CSV 내보내기와 리허설 초기화. */
 export function AdminToolbox({
-  settings,
-  busy,
-  onRevealStep,
   onReset,
   onNotice,
 }: {
-  settings: AdminSettings;
-  busy: boolean;
-  onRevealStep: (step: number) => void;
   /** 초기화를 실행하고 성공 여부를 돌려준다. */
   onReset: () => Promise<boolean>;
   /** 화면 아래 알림으로 보여 줄 문구 */
@@ -49,7 +41,6 @@ export function AdminToolbox({
   const [confirmation, setConfirmation] = useState("");
   const [resetting, setResetting] = useState(false);
   const [resetFailed, setResetFailed] = useState(false);
-  const revealed = settings.status === "revealed";
 
   async function exportCsv() {
     if (exporting) return;
@@ -93,37 +84,7 @@ export function AdminToolbox({
         운영 도구
       </h2>
 
-      <h3 className="mt-3 text-h3 text-text">시상 연출 단계</h3>
-      {revealed ? (
-        <>
-          <p aria-live="polite" className="mt-1 text-text">
-            현재 {settings.reveal_step}단계 ·{" "}
-            <strong>{REVEAL_STEP_LABELS[settings.reveal_step] ?? "추가 단계"}</strong>
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <button
-              type="button"
-              disabled={busy || settings.reveal_step <= 0}
-              onClick={() => onRevealStep(settings.reveal_step - 1)}
-              className={BUTTON_SECONDARY}
-            >
-              이전 단계
-            </button>
-            <button
-              type="button"
-              disabled={busy || settings.reveal_step >= LAST_STEP}
-              onClick={() => onRevealStep(settings.reveal_step + 1)}
-              className={BUTTON_PRIMARY}
-            >
-              다음 연출 단계
-            </button>
-          </div>
-        </>
-      ) : (
-        <p className="mt-1 text-text-muted">결과 공개 단계에서 사용할 수 있습니다.</p>
-      )}
-
-      <h3 className="mt-4 text-h3 text-text">데이터 관리 및 리허설 제어</h3>
+      <h3 className="mt-3 text-h3 text-text">데이터 관리 및 리허설 제어</h3>
       <p className="mt-1 text-text-muted">
         결과 CSV에는 최종 순위 요약과 투자자별 상세 배분표가 들어 있습니다. 엑셀에서 바로 열 수 있습니다.
       </p>

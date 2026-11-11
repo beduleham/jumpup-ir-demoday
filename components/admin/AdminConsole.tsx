@@ -9,6 +9,7 @@ import { AdminToolbox } from "@/components/admin/AdminToolbox";
 import { BulkRegisterModal, type BulkSubmitResult } from "@/components/admin/BulkRegisterModal";
 import { InvestorStatusList } from "@/components/admin/InvestorStatusList";
 import { LiveMonitoringTable } from "@/components/admin/LiveMonitoringTable";
+import { RevealStepController } from "@/components/admin/RevealStepController";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, PANEL } from "@/components/admin/styles";
 import type { BulkRegisterRow } from "@/lib/bulk-parse";
 import {
@@ -114,11 +115,15 @@ export function AdminConsole() {
     else if (realtimeFailedSchema.safeParse(result.body).success) setToast(REALTIME_FAILED);
   }
 
-  async function overrideRank(teamId: string, rank: number | null) {
+  /** 실패하면 순위 보정 창에 보여 줄 문구를, 성공하면 null을 돌려준다. */
+  async function overrideRank(teamId: string, rank: number | null): Promise<string | null> {
     const result = await send("PATCH", `/api/admin/teams/${teamId}/override-rank`, {
       manual_rank_override: rank,
     });
-    setToast(result.ok ? (rank === null ? "수동 순위를 해제했습니다." : `수동 순위를 ${rank}위로 저장했습니다.`) : result.error);
+    if (!result.ok) return result.error;
+    if (realtimeFailedSchema.safeParse(result.body).success) setToast(REALTIME_FAILED);
+    else setToast(rank === null ? "자동 정렬 순위로 되돌렸습니다." : `수동 순위를 ${rank}위로 저장했습니다.`);
+    return null;
   }
 
   async function registerBulk(rows: BulkRegisterRow[]): Promise<BulkSubmitResult> {
@@ -186,6 +191,14 @@ export function AdminConsole() {
         <>
           <AdminHeader dashboard={dashboard} busy={busy} onChange={changeSettings} />
 
+          {dashboard.settings.status === "revealed" ? (
+            <RevealStepController
+              step={dashboard.settings.reveal_step}
+              busy={busy}
+              onStep={(step) => void changeSettings({ reveal_step: step })}
+            />
+          ) : null}
+
           <section aria-label="투자 현황 요약" className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className={PANEL}>
               <p className="text-caption font-semibold text-text-muted">투자 참여율</p>
@@ -220,7 +233,12 @@ export function AdminConsole() {
           ) : (
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
               <div className="min-w-0 lg:col-span-2">
-                <LiveMonitoringTable teams={dashboard.teams} busy={busy} onOverrideRank={overrideRank} />
+                <LiveMonitoringTable
+                  teams={dashboard.teams}
+                  busy={busy}
+                  showTies={dashboard.settings.status === "closed" || dashboard.settings.status === "revealed"}
+                  onOverrideRank={overrideRank}
+                />
               </div>
               <div className="min-w-0">
                 <InvestorStatusList investors={dashboard.investors} />
@@ -228,13 +246,7 @@ export function AdminConsole() {
             </div>
           )}
 
-          <AdminToolbox
-            settings={dashboard.settings}
-            busy={busy}
-            onRevealStep={(step) => void changeSettings({ reveal_step: step })}
-            onReset={resetInvestments}
-            onNotice={setToast}
-          />
+          <AdminToolbox onReset={resetInvestments} onNotice={setToast} />
         </>
       )}
 

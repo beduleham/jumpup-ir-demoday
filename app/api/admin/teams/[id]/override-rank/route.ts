@@ -3,6 +3,7 @@ import { z } from "zod";
 import { rejectUnlessAdmin } from "@/lib/admin-auth";
 import { overrideTeamRank } from "@/lib/admin-data";
 import { adminError, adminFail, adminOk, readJson } from "@/lib/admin-http";
+import { broadcastStateChange } from "@/lib/realtime-broadcast";
 
 export const dynamic = "force-dynamic";
 
@@ -19,8 +20,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   if (!id.success || !parsed.success) return adminFail(400, "요청 형식이 올바르지 않습니다.");
 
   try {
-    await overrideTeamRank(id.data, parsed.data.manual_rank_override);
-    return adminOk();
+    const settings = await overrideTeamRank(id.data, parsed.data.manual_rank_override);
+    // 결과 공개 중이면 대형 스크린의 순위가 바뀌어야 하므로 다시 읽으라고 알린다.
+    // 알림이 실패해도 순위는 저장되어 있고 화면은 주기적 확인으로 따라온다.
+    const delivered = await broadcastStateChange(settings);
+    return adminOk({ realtime: delivered ? "sent" : "failed" });
   } catch (error) {
     return adminError("api/admin/teams/override-rank", error);
   }
