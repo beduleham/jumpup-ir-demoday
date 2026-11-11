@@ -85,8 +85,13 @@ export async function startLocalDatabase(): Promise<LocalDatabase> {
     async stop() {
       await Promise.all([admin.end(), ...[...pools.values()].map((pool) => pool.end())]);
       await server.stop();
-      // Windows에서는 서버가 멈춘 직후에도 파일 잠금이 잠깐 남을 수 있어 삭제를 재시도한다.
-      await rm(databaseDir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+      // Windows에서는 서버가 멈춘 직후에도 파일 잠금이 남을 수 있어 삭제를 재시도한다.
+      // 그래도 못 지우면 테스트 결과와 무관한 임시 폴더이므로 경고만 남긴다.
+      try {
+        await rm(databaseDir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+      } catch (error) {
+        console.warn(`[test] 임시 DB 폴더를 지우지 못했습니다(직접 삭제해도 됩니다): ${databaseDir}`, error);
+      }
     },
   };
 }
