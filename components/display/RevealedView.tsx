@@ -144,7 +144,7 @@ function LowerRankRow({ team, index }: { team: TeamResultItem; index: number }) 
       transition={{ duration: 0.3, delay: index * 0.05, ease: "easeOut" }}
       className="flex min-w-0 items-center gap-4 rounded-xl border-2 border-stage-border bg-stage-surface px-5 py-3"
     >
-      <span className="inline-flex min-w-20 justify-center rounded-md bg-stage-body px-3 py-2 text-h1 font-bold">
+      <span className="inline-flex min-w-20 justify-center rounded-md bg-stage-body px-3 py-2 text-h1 font-semibold">
         {team.final_rank}위
       </span>
       <span className="min-w-0 flex-1">
@@ -153,7 +153,7 @@ function LowerRankRow({ team, index }: { team: TeamResultItem; index: number }) 
           {team.team_no}번 · {team.leader_name} 대표
         </span>
       </span>
-      <span className="text-h1 font-bold">{team.total_raised_units}억 원</span>
+      <span className="text-h1 font-semibold">{team.total_raised_units}억 원</span>
     </motion.li>
   );
 }
@@ -184,7 +184,7 @@ function PodiumColumn({ rank, teams }: { rank: 1 | 2 | 3; teams: TeamResultItem[
       transition={{ duration: 0.5, delay: first ? 0.3 : 0, ease: "easeOut" }}
       className={`flex min-w-0 flex-1 flex-col items-center justify-center rounded-2xl bg-stage-surface px-8 text-center ${tone.border} ${first ? "h-[380px] border-4" : "h-[310px] border-2"}`}
     >
-      <p className={`inline-flex items-center gap-2 rounded-xl px-6 py-2 text-h1 font-bold ${tone.badge}`}>
+      <p className={`inline-flex items-center gap-2 rounded-xl px-6 py-2 text-h1 font-semibold ${tone.badge}`}>
         <Trophy aria-hidden="true" size={32} strokeWidth={2} />
         {rankLabel(rank, teams.length > 1)} · {AWARD_NAMES[rank]}
       </p>

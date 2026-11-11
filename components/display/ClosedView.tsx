@@ -13,7 +13,7 @@ export function ClosedView() {
         />
         <span className="absolute inset-6 rounded-full bg-primary" />
       </div>
-      <h1 className="text-display-1">투자 마감!</h1>
+      <h1 className="text-display-1">투자 마감</h1>
       <p className="text-display-2 font-normal text-stage-muted">최종 결과를 집계하고 있습니다...</p>
     </div>
   );

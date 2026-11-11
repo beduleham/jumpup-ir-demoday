@@ -8,7 +8,7 @@ export function OpenView() {
   return (
     <div className="grid h-full grid-cols-[1fr_520px] items-center gap-16">
       <section>
-        <h1 className="text-display-1">실시간 모의 투자가 시작되었습니다!</h1>
+        <h1 className="text-display-1">모의 투자가 진행 중입니다</h1>
         <p className="mt-8 text-display-2 font-normal text-stage-muted">
           각 대표팀에게 가상 투자금을 배분해주세요.
         </p>

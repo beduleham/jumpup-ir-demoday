@@ -7,31 +7,31 @@ const BANNERS: Record<
 > = {
   ready: {
     icon: Clock,
-    title: "2026 광명 스타트업 점프업 모의 IR 데모데이에 오신 것을 환영합니다.",
-    message: "대회가 곧 시작됩니다. 잠시만 대기해 주세요.",
+    title: "대회가 곧 시작됩니다",
+    message: "입장을 마치고 잠시 기다려 주세요. 발표가 시작되면 이 화면이 자동으로 바뀝니다.",
     tone: "border-border bg-surface",
   },
   pitching: {
     icon: Mic,
-    title: "발표가 진행 중입니다.",
+    title: "발표가 진행 중입니다",
     message: "발표를 듣고 투자할 기업을 살펴봐 주세요. 투자는 발표가 끝난 뒤 열립니다.",
     tone: "border-border bg-surface",
   },
   open: {
     icon: Coins,
-    title: "가상 투자가 시작되었습니다!",
+    title: "가상 투자가 열렸습니다",
     message: "아래 기업 목록을 확인하고 투자해 주세요.",
     tone: "border-primary bg-surface",
   },
   closed: {
     icon: Lock,
-    title: "투자가 마감되었습니다.",
+    title: "투자가 마감되었습니다",
     message: "집계 중입니다. 잠시 후 결과가 공개됩니다.",
     tone: "border-warning bg-warning-surface",
   },
   revealed: {
     icon: Trophy,
-    title: "시상이 진행 중입니다.",
+    title: "시상이 진행 중입니다",
     message: "수상 기업이 차례로 발표됩니다.",
     tone: "border-success bg-success-surface",
   },

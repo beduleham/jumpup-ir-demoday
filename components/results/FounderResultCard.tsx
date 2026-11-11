@@ -31,7 +31,7 @@ export function FounderResultCard({
       </h3>
 
       <p
-        className={`mt-3 inline-flex items-center gap-2 rounded-md px-3 py-2 text-h1 font-bold ${tone ? tone.badge : "bg-body text-text"}`}
+        className={`mt-3 inline-flex items-center gap-2 rounded-md px-3 py-2 text-h1 font-semibold ${tone ? tone.badge : "bg-body text-text"}`}
       >
         {tone ? <Icon aria-hidden="true" size={28} strokeWidth={2} /> : null}
         최종 {shared ? "공동 " : ""}
