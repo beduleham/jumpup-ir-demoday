@@ -7,11 +7,14 @@ export function Modal({
   title,
   onClose,
   wide = false,
+  locked = false,
   children,
 }: {
   title: string;
   onClose: () => void;
   wide?: boolean;
+  /** true인 동안에는 Esc로 닫히지 않는다(되돌릴 수 없는 작업이 진행 중일 때). */
+  locked?: boolean;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -25,6 +28,9 @@ export function Modal({
     <dialog
       ref={ref}
       onClose={onClose}
+      onCancel={(event) => {
+        if (locked) event.preventDefault();
+      }}
       aria-labelledby="modal-title"
       className={`w-full rounded-xl border border-border bg-surface p-0 text-text backdrop:bg-text/50 ${wide ? "max-w-4xl" : "max-w-md"}`}
     >

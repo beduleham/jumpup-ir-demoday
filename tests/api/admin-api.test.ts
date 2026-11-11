@@ -391,25 +391,61 @@ describe("집계, 순위, 내보내기, 초기화", () => {
     const bytes = new Uint8Array(await response.arrayBuffer());
     expect([...bytes.subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
 
+    expect(response.headers.get("cache-control")).toBe("no-store, no-cache, must-revalidate");
+
     const lines = new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes).slice(1).split("\r\n");
-    expect(lines[2]).toBe("1,3,기업 3,대표 3,6,1,6,N");
-    expect(lines[3]).toBe("2,2,기업 2,대표 2,5,2,3,N");
-    expect(lines).toContain("1,대표 1,기업 1,0,2,0,5,0,0,0,0,0,0,0,0,7");
-    expect(lines).toContain("102,이멘토,외부 투자자,0,0,6,0,0,0,0,0,0,0,0,0,6");
+    expect(lines[3]).toBe('"[1. 최종 순위 요약]"');
+    expect(lines[5]).toBe('1,3,"기업 3","대표 3",6,1,6,"자동정렬"');
+    expect(lines[6]).toBe('2,2,"기업 2","대표 2",5,2,3,"자동정렬"');
+    // 순위표 12행 뒤에 빈 줄, 그다음이 상세 매트릭스
+    expect(lines[18]).toBe('"[2. 상세 투자 배분 매트릭스 (단위: 억원)]"');
+    expect(lines[19].startsWith('"투자자번호","투자자명","투자자구분","소속기업/기관","1번(기업 1)","2번(기업 2)"')).toBe(true);
+    expect(lines[19].endsWith('"12번(기업 12)","개인투자총액(억원)","잔여예산(억원)"')).toBe(true);
+    expect(lines).toContain('1,"대표 1","참여기업(대표)","기업 1",0,2,0,5,0,0,0,0,0,0,0,0,7,3');
+    expect(lines).toContain('102,"이멘토","외부심사위원","",0,0,6,0,0,0,0,0,0,0,0,0,6,4');
+    // 투자자 15명이 모두 들어 있다.
+    expect(lines.slice(20).filter((line) => line !== "")).toHaveLength(15);
+  });
+
+  it("투자가 한 건도 없어도 CSV를 내려준다", async () => {
+    await db.admin.query("delete from public.investments");
+    const response = await exportCsv(request("GET", "/api/admin/export-csv", undefined, admin));
+    expect(response.status).toBe(200);
+    const text = await response.text();
+    expect(text).toContain('1,1,"기업 1","대표 1",0,0,0,"자동정렬"');
+    expect(text).toContain('101,"김심사","외부심사위원","",0,0,0,0,0,0,0,0,0,0,0,0,0,10');
   });
 
   it("초기화는 확인 문구가 정확할 때만 실행되고 명단은 보존한다", async () => {
     const reset = (confirmation: unknown) =>
       resetInvestments(request("POST", "/api/admin/reset-investments", { confirmation }, admin));
 
-    expect((await reset("초기화")).status).toBe(400);
+    const wrong = await reset("초기화");
+    expect(wrong.status).toBe(400);
+    expect(await wrong.json()).toEqual({
+      success: false,
+      error: "확인 문구가 일치하지 않습니다. '초기화 실행'을 정확히 입력해주세요.",
+    });
     expect((await reset(undefined)).status).toBe(400);
+    expect((await reset(" 초기화 실행 ")).status).toBe(400);
     expect((await db.admin.query("select 1 from public.investments")).rowCount).toBe(6);
 
+    await db.admin.query(
+      "update public.settings set status = 'revealed', reveal_step = 5, current_pitch_team_id = (select id from public.teams where team_no = 2)",
+    );
     await db.admin.query("update public.teams set manual_rank_override = 1 where team_no = 4");
     const response = await reset("초기화 실행");
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ success: true, message: "투자 데이터가 초기화되었습니다.", realtime: "sent" });
+    expect(await response.json()).toEqual({
+      success: true,
+      message: "투자 데이터가 성공적으로 초기화되었습니다.",
+      realtime: "sent",
+    });
+
+    const settings = await db.admin.query("select status, reveal_step, current_pitch_team_id from public.settings");
+    expect(settings.rows).toEqual([{ status: "ready", reveal_step: 0, current_pitch_team_id: null }]);
+    expect((await db.admin.query("select 1 from public.investments")).rowCount).toBe(0);
+    expect(shim.broadcasts.at(-1)).toMatchObject({ topic: "jumpup_public_display", event: "state_change" });
 
     const data = await getDashboard();
     expect(data.settings.status).toBe("ready");

@@ -16,12 +16,14 @@ export async function POST(request: NextRequest) {
   if (rejected) return rejected;
 
   const parsed = requestSchema.safeParse(await readJson(request));
-  if (!parsed.success) return adminFail(400, `확인 문구 "${RESET_CONFIRMATION}"를 정확히 입력해 주세요.`);
+  if (!parsed.success) {
+    return adminFail(400, `확인 문구가 일치하지 않습니다. '${RESET_CONFIRMATION}'을 정확히 입력해주세요.`);
+  }
 
   try {
     await resetInvestments();
     const delivered = await broadcastStateChange(await fetchAdminSettings(), true);
-    return adminOk({ message: "투자 데이터가 초기화되었습니다.", realtime: delivered ? "sent" : "failed" });
+    return adminOk({ message: "투자 데이터가 성공적으로 초기화되었습니다.", realtime: delivered ? "sent" : "failed" });
   } catch (error) {
     return adminError("api/admin/reset-investments", error);
   }

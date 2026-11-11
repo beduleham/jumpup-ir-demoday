@@ -128,24 +128,75 @@ describe("결과 CSV", () => {
     { id: "i1", investor_no: 1, investor_name: "홍길동", phone: "", investor_type: "founder" as const, team_id: "t1", allocated_units: 5, remaining_units: 5, is_submitted: false },
     { id: "i101", investor_no: 101, investor_name: "김심사", phone: "", investor_type: "external" as const, team_id: null, allocated_units: 3, remaining_units: 7, is_submitted: false },
   ];
-  const csv = buildResultsCsv({ teams, investors }, [
-    { investor_id: "i1", team_id: "t2", amount_units: 5 },
-    { investor_id: "i101", team_id: "t1", amount_units: 3 },
-  ]);
+  const generatedAt = new Date("2026-11-13T08:30:05Z"); // 한국 시간 17:30:05
+  const csv = buildResultsCsv(
+    { teams, investors },
+    [
+      { investor_id: "i1", team_id: "t2", amount_units: 5 },
+      { investor_id: "i101", team_id: "t1", amount_units: 3 },
+    ],
+    generatedAt,
+  );
+  const lines = csv.slice(1).split("\r\n");
 
   it("UTF-8 BOM으로 시작하고 CRLF로 줄을 나눈다", () => {
     expect(csv.charCodeAt(0)).toBe(0xfeff);
     expect(Buffer.from(csv, "utf8").subarray(0, 3)).toEqual(Buffer.from([0xef, 0xbb, 0xbf]));
-    expect(csv.split("\r\n").length).toBeGreaterThan(6);
+    expect(csv.endsWith("\r\n")).toBe(true);
+    expect(csv.slice(1)).not.toMatch(/[^\r]\n/);
   });
 
-  it("순위표와 투자 매트릭스를 담고, 쉼표·따옴표·수식을 안전하게 처리한다", () => {
-    const lines = csv.slice(1).split("\r\n");
-    expect(lines[1]).toBe("최종순위,기업번호,기업명,대표자,총유치액(억원),투자자수,외부투자유치액(억원),수동조정여부");
-    expect(lines[2]).toBe(`1,2,"'=SUM(A1), ""그린""",김하늘,5,2,0,Y`);
-    expect(lines[3]).toBe("2,1,큐네스티,홍길동,3,1,3,N");
-    expect(lines[7]).toBe("1,홍길동,큐네스티,0,5,5");
-    expect(lines[8]).toBe("101,김심사,외부 투자자,3,0,3");
+  it("제목과 한국 시간 기준 생성일시로 시작한다", () => {
+    expect(lines[0]).toBe('"[광명 스타트업 점프업 모의 IR 데모데이 최종 집계 결과]"');
+    expect(lines[1]).toBe('"생성일시","2026-11-13 17:30:05"');
+    expect(lines[2]).toBe("");
+  });
+
+  it("1번 표: 최종 순위 요약. 글자 칸은 따옴표로 감싸고 쉼표·따옴표·수식을 안전하게 처리한다", () => {
+    expect(lines[3]).toBe('"[1. 최종 순위 요약]"');
+    expect(lines[4]).toBe(
+      '"최종순위","기업번호","기업명","대표자명","총유치액(억원)","유치건수","외부투자유치액(억원)","순위보정여부"',
+    );
+    expect(lines[5]).toBe(`1,2,"'=SUM(A1), ""그린""","김하늘",5,2,0,"수동보정"`);
+    expect(lines[6]).toBe('2,1,"큐네스티","홍길동",3,1,3,"자동정렬"');
+    expect(lines[7]).toBe("");
+  });
+
+  it("2번 표: 투자자별 상세 배분, 개인 합계와 잔여 예산", () => {
+    expect(lines[8]).toBe('"[2. 상세 투자 배분 매트릭스 (단위: 억원)]"');
+    expect(lines[9]).toBe(
+      // 열 제목은 "2번("으로 시작하므로 수식으로 읽히지 않아 작은따옴표를 붙이지 않는다.
+      `"투자자번호","투자자명","투자자구분","소속기업/기관","1번(큐네스티)","2번(=SUM(A1), ""그린"")","개인투자총액(억원)","잔여예산(억원)"`,
+    );
+    expect(lines[10]).toBe('1,"홍길동","참여기업(대표)","큐네스티",0,5,5,5');
+    expect(lines[11]).toBe('101,"김심사","외부심사위원","",3,0,3,7');
+  });
+
+  it("칸 안의 줄바꿈은 따옴표 안에 그대로 두어 한 칸으로 읽히게 한다", () => {
+    const first = teams.find((team) => team.team_no === 1);
+    if (!first) throw new Error("1번 기업이 없습니다.");
+    const multiline = buildResultsCsv(
+      { teams: rankTeams([{ ...first, company_name: "첫 줄\n둘째 줄, 쉼표" }]), investors: [] },
+      [],
+      generatedAt,
+    );
+    expect(multiline).toContain('1,1,"첫 줄\n둘째 줄, 쉼표","홍길동"');
+  });
+
+  it("투자가 한 건도 없어도 명단과 0으로 채운 표가 나온다", () => {
+    const empty = buildResultsCsv(
+      {
+        teams: rankTeams(teams.map((team) => ({ ...team, total_raised_units: 0, investor_count: 0, external_raised_units: 0, manual_rank_override: null }))),
+        investors: investors.map((investor) => ({ ...investor, allocated_units: 0, remaining_units: 10 })),
+      },
+      [],
+      generatedAt,
+    )
+      .slice(1)
+      .split("\r\n");
+    expect(empty[5]).toBe('1,1,"큐네스티","홍길동",0,0,0,"자동정렬"');
+    expect(empty[10]).toBe('1,"홍길동","참여기업(대표)","큐네스티",0,0,0,10');
+    expect(empty[11]).toBe('101,"김심사","외부심사위원","",0,0,0,10');
   });
 
   it("파일 이름은 한국 시간 기준이다", () => {

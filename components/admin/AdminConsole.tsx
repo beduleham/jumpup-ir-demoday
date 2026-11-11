@@ -131,11 +131,9 @@ export function AdminConsole() {
   // 모달이 성공 후 스스로 닫히는 타이머를 걸므로, 다시 그려져도 같은 함수여야 한다.
   const closeBulk = useCallback(() => setBulkOpen(false), []);
 
-  async function resetInvestments(): Promise<string | null> {
+  async function resetInvestments(): Promise<boolean> {
     const result = await send("POST", "/api/admin/reset-investments", { confirmation: RESET_CONFIRMATION });
-    if (!result.ok) return result.error;
-    setToast("투자 데이터가 초기화되었으며 대회 상태가 '준비'로 변경되었습니다.");
-    return null;
+    return result.ok;
   }
 
   async function logout() {
@@ -235,6 +233,7 @@ export function AdminConsole() {
             busy={busy}
             onRevealStep={(step) => void changeSettings({ reveal_step: step })}
             onReset={resetInvestments}
+            onNotice={setToast}
           />
         </>
       )}
