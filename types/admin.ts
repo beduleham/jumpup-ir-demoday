@@ -75,11 +75,13 @@ export type UpdateSettingsRequest = z.infer<typeof updateSettingsRequestSchema>;
 
 export const RESET_CONFIRMATION = "초기화 실행";
 
+// 대형 스크린(/result)의 시상 연출 단계. 화면 동작은 lib/reveal.ts가 같은 번호로 정의한다.
 export const REVEAL_STEP_LABELS = [
-  "숨김",
-  "3위 발표",
-  "2위 발표",
-  "1위 발표",
+  "발표 대기",
+  "3위 발표 예고",
+  "3위 공개",
+  "2위 공개",
+  "1위 발표 예고",
+  "1위 공개",
   "전체 순위표",
-  "모바일 결과 오픈",
 ] as const;

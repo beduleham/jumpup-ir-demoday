@@ -31,6 +31,11 @@ const config: Config = {
           text: "#F8FAFC",
           muted: "#94A3B8",
         },
+        // 시상 화면의 2·3위 포인트 색(1위는 accent). 다크 표면(#1E293B) 위 대비 7:1 이상.
+        medal: {
+          silver: "#CBD5E1",
+          bronze: "#E0A878",
+        },
         success: {
           DEFAULT: "#15803D",
           surface: "#DCFCE7",
