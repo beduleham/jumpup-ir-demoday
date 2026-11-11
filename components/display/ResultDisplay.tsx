@@ -22,7 +22,9 @@ function CenterMessage({ title, body }: { title: string; body?: string }) {
 function Stage({ data }: { data: DisplayData }) {
   const { state, results } = data;
   if (results.results.length === 0) {
-    return (
+    return state.status === "revealed" ? (
+      <CenterMessage title="집계된 순위 데이터가 없습니다." body="대회 운영본부 확인이 필요합니다." />
+    ) : (
       <CenterMessage
         title="등록된 참여 기업 정보가 없습니다."
         body="관리자 콘솔에서 기업을 먼저 등록해주세요."
@@ -66,14 +68,25 @@ export function ResultDisplay() {
             {data ? (
               <Stage data={data} />
             ) : failed ? (
-              <CenterMessage
-                title="화면 정보를 불러오지 못했습니다."
-                body="네트워크 상태를 확인해주세요. 자동으로 다시 시도하고 있습니다."
-              />
+              <div role="alert" className="flex h-full flex-col items-center justify-center gap-6 text-center">
+                <p className="text-display-2 text-danger-icon">실시간 집계 서버와 통신할 수 없습니다.</p>
+                <p className="text-h1 text-stage-muted">자동으로 다시 연결하고 있습니다.</p>
+                {/* 다시 시도 중임을 보여 주는 움직이는 막대 */}
+                <div aria-hidden="true" className="h-2 w-[720px] overflow-hidden rounded-sm bg-stage-surface">
+                  <motion.div
+                    className="h-full w-1/3 rounded-sm bg-primary"
+                    animate={{ x: ["-100%", "300%"] }}
+                    transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+                  />
+                </div>
+              </div>
             ) : (
               <div role="status" className="flex h-full flex-col items-center justify-center gap-8">
-                <div className="h-48 w-[720px] animate-pulse rounded-2xl bg-stage-surface motion-reduce:animate-none" />
-                <p className="text-h1 text-stage-muted">데모데이 디스플레이 시스템 연결 중...</p>
+                <span
+                  aria-hidden="true"
+                  className="block h-8 w-8 animate-spin rounded-full border-4 border-stage-border border-t-primary motion-reduce:animate-none"
+                />
+                <p className="text-h1 text-stage-muted">시상식 화면을 준비하고 있습니다...</p>
               </div>
             )}
           </motion.div>

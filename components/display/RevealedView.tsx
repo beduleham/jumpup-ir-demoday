@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Trophy } from "lucide-react";
+import { Award, Trophy } from "lucide-react";
 import { useEffect } from "react";
 import { fireWinnerConfetti } from "@/lib/confetti";
 import {
@@ -83,14 +83,31 @@ function WinnerTeaser() {
 
 function SpotlightCard({ rank, team, shared }: { rank: number; team: TeamResultItem; shared: boolean }) {
   const tone = RANK_TONE[rank];
+  const winner = rank === 1;
   return (
     <motion.section
-      initial={{ opacity: 0, y: 80, scale: 0.92 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.7, ease: "easeOut" }}
-      className={`flex min-w-0 flex-1 flex-col items-center rounded-2xl border-4 bg-stage-surface px-12 py-12 text-center ${tone.border}`}
+      // 1위는 크게 다가왔다가 제자리에 내려앉고, 2·3위는 살짝 부풀었다가 자리 잡는다.
+      initial={winner ? { opacity: 0, scale: 1.25 } : { opacity: 0, y: 40, scale: 0.85 }}
+      animate={winner ? { opacity: 1, scale: 1 } : { opacity: 1, y: 0, scale: [0.85, 1.05, 1] }}
+      transition={
+        winner
+          ? { type: "spring", stiffness: 140, damping: 16 }
+          : { duration: 0.7, ease: "easeOut", times: [0, 0.7, 1] }
+      }
+      className={`relative flex min-w-0 flex-1 flex-col items-center rounded-2xl border-4 bg-stage-surface px-12 py-12 text-center ${tone.border} ${winner ? "shadow-winner" : ""}`}
     >
-      <p className={`inline-flex items-center gap-3 rounded-xl px-8 py-3 text-display-2 ${tone.badge}`}>
+      {winner ? (
+        <motion.div
+          aria-hidden="true"
+          initial={{ opacity: 0, rotate: -180, scale: 0 }}
+          animate={{ opacity: 1, rotate: 0, scale: 1 }}
+          transition={{ type: "spring", stiffness: 160, damping: 14, delay: 0.25 }}
+          className="absolute -top-16 flex h-28 w-28 items-center justify-center rounded-full border-4 border-accent bg-stage-body text-medal-gold"
+        >
+          <Award size={72} strokeWidth={2} />
+        </motion.div>
+      ) : null}
+      <p className={`inline-flex items-center gap-3 rounded-xl px-8 py-3 text-display-2 ${winner ? "mt-8" : ""} ${tone.badge}`}>
         <Trophy aria-hidden="true" size={48} strokeWidth={2} />
         {rankLabel(rank, shared)} · {AWARD_NAMES[rank]}
       </p>

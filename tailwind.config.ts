@@ -33,6 +33,7 @@ const config: Config = {
         },
         // 시상 화면의 2·3위 포인트 색(1위는 accent). 다크 표면(#1E293B) 위 대비 7:1 이상.
         medal: {
+          gold: "#FACC15",
           silver: "#CBD5E1",
           bronze: "#E0A878",
         },
@@ -71,6 +72,14 @@ const config: Config = {
         h3: ["1rem", { lineHeight: "1.5", letterSpacing: "0em", fontWeight: "500" }],
         body: ["0.875rem", { lineHeight: "1.5", letterSpacing: "0em", fontWeight: "400" }],
         caption: ["0.75rem", { lineHeight: "1.4", letterSpacing: "0em", fontWeight: "400" }],
+      },
+      // 대형 스크린 무대 연출 전용: 1위 카드의 오렌지 빛과, 브랜드 두 색이 은은하게 비치는 무대 배경.
+      boxShadow: {
+        winner: "0 0 40px rgb(255 107 0 / 0.45)",
+      },
+      backgroundImage: {
+        "stage-backdrop":
+          "radial-gradient(circle at 12% 0%, rgb(0 91 172 / 0.3), transparent 45%), radial-gradient(circle at 88% 100%, rgb(255 107 0 / 0.14), transparent 45%)",
       },
       borderRadius: {
         sm: "4px",

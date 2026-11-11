@@ -79,7 +79,7 @@ export function DisplayContainer({
   const time = useSeoulClock();
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-stage-body text-stage-text">
+    <div className="fixed inset-0 overflow-hidden bg-stage-body bg-stage-backdrop text-stage-text">
       <div
         className={`absolute left-1/2 top-1/2 flex flex-col ${scale === null ? "invisible" : ""}`}
         style={{

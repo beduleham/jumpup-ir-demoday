@@ -1,7 +1,7 @@
 import confetti from "canvas-confetti";
 
-// 축하 효과 색. tailwind 토큰(primary, accent, stage.text)과 같은 값이다.
-const COLORS = ["#005BAC", "#FF6B00", "#F8FAFC"];
+// 축하 효과 색. tailwind 토큰(primary, accent, medal.gold, stage.text)과 같은 값이다.
+const COLORS = ["#005BAC", "#FF6B00", "#FACC15", "#F8FAFC"];
 const DURATION_MS = 3000;
 const INTERVAL_MS = 250;
 // 왼쪽·가운데·오른쪽에서 4개씩, 12회 = 총 144개(저사양 PC를 고려해 150개 이하)
