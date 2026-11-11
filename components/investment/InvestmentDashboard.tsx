@@ -6,6 +6,7 @@ import { HomeErrorView } from "@/components/home/HomeErrorView";
 import { BudgetHeader } from "@/components/investment/BudgetHeader";
 import { TeamInvestmentCard } from "@/components/investment/TeamInvestmentCard";
 import { useNetworkStatus } from "@/hooks/use-network-status";
+import { useSound } from "@/hooks/use-sound";
 import { reportRequestFailure } from "@/lib/network-status";
 import type { CompetitionStatus, PublicTeam, SessionInvestor } from "@/types/competition";
 import { myInvestmentsResponseSchema, setInvestmentResponseSchema } from "@/types/investment";
@@ -64,6 +65,7 @@ export function InvestmentDashboard({
 }) {
   const router = useRouter();
   const online = useNetworkStatus();
+  const { manager: sound } = useSound("mobile");
   const [allocations, setAllocations] = useState<Allocations>({});
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [saving, setSaving] = useState(false);
@@ -166,6 +168,7 @@ export function InvestmentDashboard({
     const next = current + delta;
     if (next < 0 || (delta > 0 && total(desired.current) >= budgetUnits)) return;
     show({ ...desired.current, [teamId]: next });
+    sound.play(delta > 0 ? "invest_up" : "invest_down");
     void flush();
   }
 
@@ -241,7 +244,11 @@ export function InvestmentDashboard({
                 canIncrease={open && investedUnits < budgetUnits}
                 limitReached={open && investedUnits >= budgetUnits}
                 onChange={(delta) => change(team.id, delta)}
-                onLimitTap={() => setToast(LIMIT_REACHED)}
+                onLimitTap={() => {
+                  sound.play("limit_warning");
+                  setToast(LIMIT_REACHED);
+                }}
+                onOwnTeamTap={() => sound.play("limit_warning")}
               />
             );
           })}

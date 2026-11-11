@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion, MotionConfig } from "framer-motion";
+import { useEffect, useRef } from "react";
 import { ClosedView } from "@/components/display/ClosedView";
 import { DisplayContainer } from "@/components/display/DisplayContainer";
 import { OpenView } from "@/components/display/OpenView";
@@ -8,6 +9,8 @@ import { PitchingView } from "@/components/display/PitchingView";
 import { ReadyView } from "@/components/display/ReadyView";
 import { RevealedView } from "@/components/display/RevealedView";
 import { useDisplayData, type DisplayData } from "@/hooks/use-display-data";
+import { useSound } from "@/hooks/use-sound";
+import { revealSound } from "@/lib/reveal";
 import { STATUS_LABELS } from "@/types/competition";
 
 function CenterMessage({ title, body }: { title: string; body?: string }) {
@@ -48,6 +51,25 @@ function Stage({ data }: { data: DisplayData }) {
 /** 행사장 대형 스크린. 입력을 받지 않는 보기 전용 화면이며 대회 상태를 스스로 따라간다. */
 export function ResultDisplay() {
   const { data, failed, link } = useDisplayData();
+  const { manager: sound } = useSound("display");
+
+  // 시상 단계가 바뀌면 그 단계의 효과음을 낸다. 1위 발표 단계에서 설정 시각만 바뀌면(축하 효과 재격발) 팡파레를 다시 낸다.
+  const revealed = data?.state.status === "revealed";
+  const step = data?.state.reveal_step;
+  const changedAt = data?.state.updated_at;
+  const last = useRef<{ step: number; changedAt: string } | null>(null);
+  useEffect(() => {
+    if (!revealed || step === undefined || changedAt === undefined) {
+      last.current = null;
+      return;
+    }
+    const previous = last.current;
+    last.current = { step, changedAt };
+    // 화면을 처음 열었을 때는 내지 않는다(이미 지나간 단계의 소리가 뒤늦게 나지 않게).
+    if (!previous) return;
+    const next = revealSound(previous.step, step, previous.changedAt !== changedAt);
+    if (next) sound.play(next);
+  }, [revealed, step, changedAt, sound]);
   // 단계나 시상 스텝, 발표 기업이 바뀔 때마다 화면을 전환 효과와 함께 바꾼다.
   const viewKey = data
     ? `${data.state.status}-${data.state.reveal_step}-${data.state.current_pitch_team?.id ?? ""}`

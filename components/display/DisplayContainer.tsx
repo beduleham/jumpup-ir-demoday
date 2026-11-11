@@ -3,6 +3,7 @@
 import { CircleCheck, RefreshCw, TriangleAlert, WifiOff } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useState, type ReactNode } from "react";
+import { SoundToggleButton } from "@/components/sound/SoundToggleButton";
 import { useNetworkStatus } from "@/hooks/use-network-status";
 import type { RealtimeLink } from "@/hooks/use-state-change-signal";
 import logoCenter from "@/public/logo_center.png";
@@ -113,6 +114,7 @@ export function DisplayContainer({
               <p className="rounded-md bg-primary px-5 py-2 text-h1 text-primary-foreground">{statusLabel}</p>
             ) : null}
             <p className="min-w-24 text-right text-h1 tabular-nums text-stage-muted">{time}</p>
+            <SoundToggleButton scope="display" tone="stage" />
           </div>
         </header>
         <main className="flex min-h-0 flex-1 flex-col px-16 py-10">{children}</main>

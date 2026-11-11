@@ -11,6 +11,7 @@ export function TeamInvestmentCard({
   limitReached,
   onChange,
   onLimitTap,
+  onOwnTeamTap,
 }: {
   team: PublicTeam;
   /** 내가 이 기업에 배분한 금액(억 원) */
@@ -22,9 +23,13 @@ export function TeamInvestmentCard({
   limitReached: boolean;
   onChange: (delta: 1 | -1) => void;
   onLimitTap: () => void;
+  /** 자기 기업 카드를 눌렀을 때(투자할 수 없음을 소리로 알리는 데 쓴다) */
+  onOwnTeamTap: () => void;
 }) {
   return (
     <li
+      // 자기 기업 카드에는 누를 것이 없다. 눌렀을 때 거절음만 낸다(안내 문구는 카드에 항상 보인다).
+      onClick={isOwnTeam ? onOwnTeamTap : undefined}
       className={`rounded-xl border bg-surface p-4 ${isOwnTeam ? "border-dashed border-danger" : "border-border"}`}
     >
       {isOwnTeam ? <OwnTeamBadge /> : null}
