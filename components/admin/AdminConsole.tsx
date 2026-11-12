@@ -16,6 +16,7 @@ import type { BulkRegisterRow } from "@/lib/bulk-parse";
 import {
   adminDashboardSchema,
   RESET_CONFIRMATION,
+  ROSTER_RESET_CONFIRMATION,
   type AdminDashboard,
   type UpdateSettingsRequest,
 } from "@/types/admin";
@@ -143,6 +144,11 @@ export function AdminConsole() {
     return result.ok;
   }
 
+  async function resetRoster(): Promise<boolean> {
+    const result = await send("POST", "/api/admin/reset-roster", { confirmation: ROSTER_RESET_CONFIRMATION });
+    return result.ok;
+  }
+
   async function logout() {
     try {
       await fetch("/api/admin/auth/logout", { method: "POST" });
@@ -254,7 +260,7 @@ export function AdminConsole() {
             </div>
           )}
 
-          <AdminToolbox onReset={resetInvestments} onNotice={setToast} />
+          <AdminToolbox onReset={resetInvestments} onResetRoster={resetRoster} onNotice={setToast} />
         </>
       )}
 

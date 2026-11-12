@@ -174,6 +174,28 @@ export async function startPostgrestShim(db: LocalDatabase): Promise<PostgrestSh
         return send(response, 200, result.rows);
       }
 
+      if (table && request.method === "DELETE") {
+        const values: string[] = [];
+        const conditions: string[] = [];
+        for (const [key, value] of url.searchParams) {
+          if (key === "select") continue;
+          if (value.startsWith("eq.")) {
+            values.push(value.slice(3));
+            conditions.push(`${identifier(key)}::text = $${values.length}`);
+          } else if (value.startsWith("gte.")) {
+            values.push(value.slice(4));
+            conditions.push(`${identifier(key)} >= $${values.length}::numeric`);
+          } else {
+            throw new Error(`지원하지 않는 필터: ${key}=${value}`);
+          }
+        }
+        // 조건 없는 전체 삭제는 실제 Supabase(pg_safeupdate)처럼 거부한다.
+        if (conditions.length === 0) throw new Error("DELETE requires a WHERE clause");
+        await pool.query(`delete from public.${identifier(table[1])} where ${conditions.join(" and ")}`, values);
+        response.writeHead(204);
+        return response.end();
+      }
+
       return send(response, 404, { message: `shim: 지원하지 않는 요청 ${request.method} ${url.pathname}` });
     } catch (error) {
       return sendDatabaseError(response, error);

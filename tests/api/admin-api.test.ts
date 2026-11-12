@@ -6,6 +6,7 @@ import { POST as bulkRegister } from "@/app/api/admin/bulk-register/route";
 import { GET as dashboard } from "@/app/api/admin/dashboard/route";
 import { GET as exportCsv } from "@/app/api/admin/export-csv/route";
 import { POST as resetInvestments } from "@/app/api/admin/reset-investments/route";
+import { POST as resetRoster } from "@/app/api/admin/reset-roster/route";
 import { POST as updateSettings } from "@/app/api/admin/settings/route";
 import { PATCH as overrideRank } from "@/app/api/admin/teams/[id]/override-rank/route";
 import { POST as createSession } from "@/app/api/auth/session/route";
@@ -482,6 +483,48 @@ describe("집계, 순위, 내보내기, 초기화", () => {
     expect(data.investors).toHaveLength(15);
     // 리허설 때 넣은 수동 순위가 본 행사에 남지 않는다.
     expect(data.teams.every((team) => team.manual_rank_override === null)).toBe(true);
+  });
+
+  it("전체 초기화는 확인 문구가 정확할 때만 명단과 투자 내역을 모두 지우고, 새 명단을 받을 수 있게 한다", async () => {
+    const reset = (confirmation: unknown, cookie = admin) =>
+      resetRoster(request("POST", "/api/admin/reset-roster", { confirmation }, cookie));
+
+    // 관리자 세션이 없거나 문구가 다르면(투자만 지우는 초기화의 문구 포함) 아무것도 지우지 않는다.
+    expect((await reset("명단 삭제 실행", "")).status).toBe(401);
+    const wrong = await reset("초기화 실행");
+    expect(wrong.status).toBe(400);
+    expect(await wrong.json()).toEqual({
+      success: false,
+      error: "확인 문구가 일치하지 않습니다. '명단 삭제 실행'을 정확히 입력해주세요.",
+    });
+    expect((await db.admin.query("select 1 from public.teams")).rowCount).toBe(12);
+    expect((await db.admin.query("select 1 from public.investments")).rowCount).toBe(6);
+
+    await db.admin.query(
+      "update public.settings set status = 'revealed', reveal_step = 6, current_pitch_team_id = (select id from public.teams where team_no = 2)",
+    );
+    const sent = shim.broadcasts.length;
+    const response = await reset("명단 삭제 실행");
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      success: true,
+      message: "명단과 투자 데이터가 모두 초기화되었습니다.",
+      realtime: "sent",
+    });
+    expect(shim.broadcasts).toHaveLength(sent + 1);
+
+    for (const table of ["teams", "investors", "investments", "invitation_tokens"]) {
+      expect((await db.admin.query(`select 1 from public.${table}`)).rowCount).toBe(0);
+    }
+    const settings = await db.admin.query("select status, reveal_step, current_pitch_team_id from public.settings");
+    expect(settings.rows).toEqual([{ status: "ready", reveal_step: 0, current_pitch_team_id: null }]);
+
+    // 비운 뒤에는 다른 명단을 새로 등록할 수 있다(같은 번호·전화번호도 다시 쓸 수 있다).
+    const again = await register("1\t새 기업\t새 대표\t010-1000-0001\t새 소개\t\n101\t\t새 심사\t010-9999-0101\t\t");
+    expect(again.status).toBe(200);
+    const data = await getDashboard();
+    expect(data.teams.map((team) => team.company_name)).toEqual(["새 기업"]);
+    expect(data.investors).toHaveLength(2);
   });
 });
 

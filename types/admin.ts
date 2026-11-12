@@ -74,6 +74,8 @@ export const updateSettingsRequestSchema = z
 export type UpdateSettingsRequest = z.infer<typeof updateSettingsRequestSchema>;
 
 export const RESET_CONFIRMATION = "초기화 실행";
+/** 명단(기업·투자자)까지 모두 지우는 전체 초기화의 확인 문구 */
+export const ROSTER_RESET_CONFIRMATION = "명단 삭제 실행";
 
 // 대형 스크린(/result)의 시상 연출 단계. 화면 동작은 lib/reveal.ts가 같은 번호로 정의한다.
 export const REVEAL_STEP_LABELS = [

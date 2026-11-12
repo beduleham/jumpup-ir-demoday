@@ -213,3 +213,19 @@ export async function resetInvestments(): Promise<void> {
   const result = await createServiceClient().rpc("reset_investments_data");
   if (result.error) throw new Error(`투자 초기화 실패: ${result.error.message}`);
 }
+
+/**
+ * 투자 내역과 명단(기업·투자자·초대 토큰)을 모두 지우고 대회를 '준비' 단계로 되돌린다.
+ * 먼저 투자를 초기화해 단계를 '준비'로 돌려 새 투자를 막은 뒤 명단을 지운다.
+ * 투자자를 지우면 그 투자 내역과 초대 토큰이, 기업을 지우면 소속 대표가 함께 지워진다(외래 키).
+ * 중간에 실패하면 다시 실행해 마저 지울 수 있다.
+ */
+export async function resetRoster(): Promise<void> {
+  await resetInvestments();
+  const supabase = createServiceClient();
+  // 조건 없는 전체 삭제는 Supabase가 거부하므로, 모든 행이 만족하는 조건(번호 1 이상)을 붙인다.
+  const investors = await supabase.from("investors").delete().gte("investor_no", 1);
+  if (investors.error) throw new Error(`투자자 명단 삭제 실패: ${investors.error.message}`);
+  const teams = await supabase.from("teams").delete().gte("team_no", 1);
+  if (teams.error) throw new Error(`기업 명단 삭제 실패: ${teams.error.message}`);
+}
